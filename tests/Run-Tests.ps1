@@ -290,14 +290,14 @@ con.close()
     [IO.File]::WriteAllText(($e2eCat + '.lock'), '')
 
     # Run dry-run in Chinese first to verify -Lang zh and check no unformatted {0} tokens
-    $zhOut = (& $cleanScript -RootPath $e2ePhotos -ExifToolPath $resolvedEt -BeforeDate '2026-11-01' -Lang zh -DryRun 6>&1 | Out-String)
+    $zhOut = (& $cleanScript -RootPath $e2ePhotos -ExifToolPath $resolvedEt -BeforeDate '2026-11-01' -PixCakeDbRoot 'NONE' -Lang zh -DryRun 6>&1 | Out-String)
     Write-Host $zhOut
     Assert-True ($LASTEXITCODE -eq 0 -and ($zhOut -match '预览') -and ($zhOut -match '待删格式分布') -and ($zhOut -match '待处理文件预览') -and ($zhOut -match 'S01\.ARW') -and ($zhOut -notmatch '\{0\}')) 'Clean-RawToRecycleBin -Lang zh -DryRun shows format stats & top-10 file preview cleanly'
 
     # Run LIVE cleanup with relative path and -Lang en
     Push-Location $e2eRoot
     try {
-        & $cleanScript -RootPath '.\2026' -ExifToolPath $resolvedEt -BeforeDate '2026-11-01' -Lang en -NoConfirm
+        & $cleanScript -RootPath '.\2026' -ExifToolPath $resolvedEt -BeforeDate '2026-11-01' -PixCakeDbRoot 'NONE' -Lang en -NoConfirm
     } finally {
         Pop-Location
     }
@@ -365,13 +365,13 @@ con.close()
     Remove-Item -LiteralPath ($e2eCat + '.lock') -ErrorAction SilentlyContinue
 
     # 4a. Dry-run preview in Chinese (no files touched, no unformatted placeholders)
-    $jpgDryZh = (& $restScript -JpgRoot $e2ePhotos -CatalogPath $e2eCat -ExifToolPath $resolvedEt -DryRun -Lang zh 6>&1 | Out-String)
+    $jpgDryZh = (& $restScript -JpgRoot $e2ePhotos -CatalogPath $e2eCat -ExifToolPath $resolvedEt -PixCakeDbRoot 'NONE' -DryRun -Lang zh 6>&1 | Out-String)
     Write-Host $jpgDryZh
     Assert-True ($LASTEXITCODE -eq 0 -and ($jpgDryZh -match '预览') -and ($jpgDryZh -match '待处理文件预览') -and ($jpgDryZh -match 'IMG_0001\.JPG') -and ($jpgDryZh -match '网盘提示') -and ($jpgDryZh -notmatch '\{0\}')) 'Restore-RatingToJpg -DryRun -Lang zh shows top-10 preview & formatted placeholders'
     Assert-True (((Get-FileHash -LiteralPath $jpg1 -Algorithm SHA256).Hash -eq $preHash1)) 'DryRun did not modify matched unrated JPG'
 
     # 4b. Live run with -NoConfirm (incremental skip + -P + centralized backup)
-    $jpgLiveOut = (& $restScript -JpgRoot $e2ePhotos -CatalogPath $e2eCat -ExifToolPath $resolvedEt -Lang en -NoConfirm 6>&1 | Out-String)
+    $jpgLiveOut = (& $restScript -JpgRoot $e2ePhotos -CatalogPath $e2eCat -ExifToolPath $resolvedEt -PixCakeDbRoot 'NONE' -Lang en -NoConfirm 6>&1 | Out-String)
     Write-Host $jpgLiveOut
     Assert-True ($LASTEXITCODE -eq 0 -and ($jpgLiveOut -notmatch '\{0\}')) 'Restore-RatingToJpg -NoConfirm exited 0'
     $inPhotoOrigs = @(Get-ChildItem -LiteralPath $e2ePhotos -Recurse -File -Filter '*_original')
@@ -393,7 +393,7 @@ con.close()
     Assert-True ($null -eq $metaJson[1].Rating) 'Unmatched same-name JPG remains unrated'
 
     # 4c. Re-run DryRun: all matched JPGs should now be skipped (0 to write)
-    $jpgReDry = (& $restScript -JpgRoot $e2ePhotos -CatalogPath $e2eCat -ExifToolPath $resolvedEt -DryRun -Lang zh 6>&1 | Out-String)
+    $jpgReDry = (& $restScript -JpgRoot $e2ePhotos -CatalogPath $e2eCat -ExifToolPath $resolvedEt -PixCakeDbRoot 'NONE' -DryRun -Lang zh 6>&1 | Out-String)
     Assert-True ($LASTEXITCODE -eq 0 -and ($jpgReDry -match '无需修改任何文件')) 'Second run skips all already-rated JPGs'
 
     # 4c-2. Verify manifest.json + jpg_restore_*.log + Rollback-JpgBackup + SubFolder/RecentDays scope
@@ -455,7 +455,7 @@ con.close()
     & $pyExe $pySc $scCat $absSc
     if ($LASTEXITCODE -ne 0) { throw "Failed to create sidecar test catalog: exit=$LASTEXITCODE" }
 
-    $scOut = (& $restScript -JpgRoot $scPhotos -CatalogPath $scCat -ExifToolPath $resolvedEt -SidecarOnly -NoConfirm -Lang en 6>&1 | Out-String)
+    $scOut = (& $restScript -JpgRoot $scPhotos -CatalogPath $scCat -ExifToolPath $resolvedEt -PixCakeDbRoot 'NONE' -SidecarOnly -NoConfirm -Lang en 6>&1 | Out-String)
     Write-Host $scOut
     $scOkXmpPath = Join-Path $scSub 'SC_OK.xmp'
     Assert-True ($LASTEXITCODE -eq 0 -and (Test-Path -LiteralPath $scOkXmpPath -PathType Leaf)) 'SidecarOnly created SC_OK.xmp'
@@ -464,15 +464,107 @@ con.close()
     Assert-True (((Get-FileHash -LiteralPath $scOkJpg -Algorithm SHA256).Hash -eq $scOkHash)) 'SidecarOnly left JPG bytes 100% untouched'
     $scConXmpText = [IO.File]::ReadAllText($scConXmp)
     Assert-True (($scConXmpText -match 'xmp:Rating="1"') -and ($scConXmpText -match 'SidecarForExtension="ARW"')) 'SidecarOnly refused to clobber RAW-owned XMP'
-    $scReDry = (& $restScript -JpgRoot $scPhotos -CatalogPath $scCat -ExifToolPath $resolvedEt -SidecarOnly -DryRun -Lang en 6>&1 | Out-String)
+    $scReDry = (& $restScript -JpgRoot $scPhotos -CatalogPath $scCat -ExifToolPath $resolvedEt -PixCakeDbRoot 'NONE' -SidecarOnly -DryRun -Lang en 6>&1 | Out-String)
     Assert-True ($LASTEXITCODE -eq 0 -and ($scReDry -match 'Nothing to do')) 'SidecarOnly second run skips already-matching sidecar'
+
+    # 4e. Universal Sources Test: No-Catalog RAW/XMP sync + Capture One (.cocatalogdb) + PixCake (project.db)
+    Write-Host "`n=== 4e. Universal Sources Test (No-Catalog XMP + Capture One + PixCake) ===" -ForegroundColor Cyan
+    $uniRoot   = Join-Path $tmpBase 'uni_test'
+    $uniPhotos = Join-Path $uniRoot 'Photos'
+    $uXmpDir   = Join-Path $uniPhotos '2026-03-01'
+    $uC1Dir    = Join-Path $uniPhotos '2026-03-02'
+    $uPxDir    = Join-Path $uniPhotos '2026-03-03'
+    $c1Dir     = Join-Path $uniRoot 'Capture One Catalog'
+    $pxDbDir   = Join-Path $uniRoot 'pixcake_db\user_1\project_1'
+    $pxRootArg = Join-Path $uniRoot 'pixcake_db'
+    New-Item -ItemType Directory -Path $uXmpDir, $uC1Dir, $uPxDir, $c1Dir, $pxDbDir -Force | Out-Null
+
+    $uXmpJpg = Join-Path $uXmpDir 'SONY_XMP.JPG'
+    New-TestJpg (Join-Path $uXmpDir 'SONY_XMP.ARW') 0
+    New-TestJpg $uXmpJpg 0
+    New-TestXmp (Join-Path $uXmpDir 'SONY_XMP.xmp') 4 'ARW' 'image/x-sony-arw' 'SONY_XMP.ARW'
+
+    $uC1Raw = Join-Path $uC1Dir 'C1_RAW.ARW'
+    $uC1Jpg = Join-Path $uC1Dir 'C1_RAW.JPG'
+    New-TestJpg $uC1Raw 0
+    New-TestJpg $uC1Jpg 0
+
+    $uPxRaw = Join-Path $uPxDir 'PX_RAW.ARW'
+    $uPxJpg = Join-Path $uPxDir 'PX_RAW.JPG'
+    New-TestJpg $uPxRaw 0
+    New-TestJpg $uPxJpg 0
+
+    $c1CatPath = Join-Path $c1Dir 'TestC1.cocatalogdb'
+    $pxDbPath  = Join-Path $pxDbDir 'project.db'
+    $pyUni     = Join-Path $tmpBase 'mk_uni_dbs.py'
+    $uniPyCode = @'
+import sqlite3, sys
+c1_path, c1_winroot, px_path, px_img = sys.argv[1:5]
+
+con1 = sqlite3.connect(c1_path)
+c1 = con1.cursor()
+c1.execute('CREATE TABLE ZPATHLOCATION (Z_PK INTEGER PRIMARY KEY, ZWINROOT TEXT, ZRELATIVEPATH TEXT)')
+c1.execute('CREATE TABLE ZIMAGE (Z_PK INTEGER PRIMARY KEY, ZIMAGELOCATION INTEGER, ZIMAGEFILENAME TEXT, ZISTRASHED INTEGER)')
+c1.execute('CREATE TABLE ZVARIANT (Z_PK INTEGER PRIMARY KEY, ZIMAGE INTEGER)')
+c1.execute('CREATE TABLE ZVARIANTLAYER (Z_PK INTEGER PRIMARY KEY, ZVARIANT INTEGER)')
+c1.execute('CREATE TABLE ZVARIANTMETADATA (Z_PK INTEGER PRIMARY KEY, ZLAYER INTEGER, ZBASIC_RATING INTEGER)')
+c1.execute("INSERT INTO ZPATHLOCATION VALUES (1, ?, '2026-03-02')", (c1_winroot,))
+c1.execute("INSERT INTO ZIMAGE VALUES (1, 1, 'C1_RAW.ARW', 0)")
+c1.execute("INSERT INTO ZVARIANT VALUES (1, 1)")
+c1.execute("INSERT INTO ZVARIANTLAYER VALUES (1, 1)")
+c1.execute("INSERT INTO ZVARIANTMETADATA VALUES (1, 1, 5)")
+con1.commit()
+con1.close()
+
+con2 = sqlite3.connect(px_path)
+c2 = con2.cursor()
+c2.execute('CREATE TABLE thumbnail (id INTEGER PRIMARY KEY, originalImagePath TEXT, starLevel INTEGER, selectFlag INTEGER, isFavourite INTEGER, inRecycleBin INTEGER)')
+c2.execute("INSERT INTO thumbnail VALUES (1, ?, 3, 0, 0, 0)", (px_img,))
+con2.commit()
+con2.close()
+'@
+    [IO.File]::WriteAllText($pyUni, $uniPyCode, (New-Object System.Text.UTF8Encoding $false))
+    & $pyExe $pyUni $c1CatPath $uniPhotos $pxDbPath $uPxRaw
+    if ($LASTEXITCODE -ne 0) { throw "Failed to create C1/PixCake test DBs: exit=$LASTEXITCODE" }
+
+    # Zero-catalog test: Sony XMP 4* syncs to JPG without ANY DB
+    & $restScript -JpgRoot $uniPhotos -SubFolder '2026-03-01' -NoCatalog -ExifToolPath $resolvedEt -NoBackup -NoConfirm -Lang en
+    Assert-True ($LASTEXITCODE -eq 0) 'Restore-RatingToJpg works with -NoCatalog via companion RAW/XMP'
+    $prev = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        $uXmpMeta = (& $resolvedEt -json -XMP:Rating $uXmpJpg 2>$null) | Out-String | ConvertFrom-Json
+    } finally { $ErrorActionPreference = $prev }
+    Assert-True ($uXmpMeta[0].Rating -eq 4) 'No-catalog JPG received 4-star rating from companion .xmp'
+
+    # Capture One DB test: protects ARW in clean AND syncs 5* to JPG
+    $c1CleanOut = (& $cleanScript -RootPath $uniPhotos -CatalogPath $c1CatPath -ExifToolPath $resolvedEt -BeforeDate '2026-04-01' -PixCakeDbRoot 'NONE' -DryRun -Lang en 6>&1 | Out-String)
+    Assert-True ($LASTEXITCODE -eq 0 -and ($c1CleanOut -notmatch 'C1_RAW\.ARW') -and ($c1CleanOut -match 'PX_RAW\.ARW') -and ($c1CleanOut -match 'Kept \(star-rated\)\s*:\s*2')) 'Clean-RawToRecycleBin protects Capture One rated RAW'
+    & $restScript -JpgRoot $uniPhotos -SubFolder '2026-03-02' -CatalogPath $c1CatPath -ExifToolPath $resolvedEt -NoBackup -NoConfirm -Lang en
+    $prev = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        $uC1Meta = (& $resolvedEt -json -XMP:Rating $uC1Jpg 2>$null) | Out-String | ConvertFrom-Json
+    } finally { $ErrorActionPreference = $prev }
+    Assert-True ($uC1Meta[0].Rating -eq 5) 'Capture One 5-star synced to C1_RAW.JPG'
+
+    # PixCake DB test: protects ARW in clean AND syncs 3* to JPG
+    $pxCleanOut = (& $cleanScript -RootPath $uniPhotos -ExifToolPath $resolvedEt -BeforeDate '2026-04-01' -PixCakeDbRoot $pxRootArg -DryRun -Lang en 6>&1 | Out-String)
+    Assert-True ($LASTEXITCODE -eq 0 -and ($pxCleanOut -notmatch 'PX_RAW\.ARW') -and ($pxCleanOut -match 'All 3 candidate RAW')) 'Clean-RawToRecycleBin protects PixCake rated RAW'
+    & $restScript -JpgRoot $uniPhotos -SubFolder '2026-03-03' -PixCakeDbRoot $pxRootArg -ExifToolPath $resolvedEt -NoBackup -NoConfirm -Lang en
+    $prev = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        $uPxMeta = (& $resolvedEt -json -XMP:Rating $uPxJpg 2>$null) | Out-String | ConvertFrom-Json
+    } finally { $ErrorActionPreference = $prev }
+    Assert-True ($uPxMeta[0].Rating -eq 3) 'PixCake 3-star synced to PX_RAW.JPG'
 
     Write-Host "`n=== 5. Unified Menu Smoke Test (-Lang zh & -Lang en & live L toggle) ===" -ForegroundColor Cyan
     $menuScript = Join-Path $projectRoot 'scripts\Start-Toolkit.ps1'
     foreach ($lg in @('zh', 'en')) {
-        $mOut = (& $menuScript -RootPath $e2ePhotos -ExifToolPath $resolvedEt -CatalogPath $e2eCat -Lang $lg -NoConfig -AutoChoices @('L', '0') 6>&1 | Out-String)
+        $mOut = (& $menuScript -RootPath $e2ePhotos -ExifToolPath $resolvedEt -CatalogPath $e2eCat -PixCakeDbRoot 'NONE' -Lang $lg -NoConfig -AutoChoices @('L', '0') 6>&1 | Out-String)
         Write-Host $mOut
-        Assert-True (($mOut -notmatch '\{0\}') -and ($mOut -match 'ExifTool') -and ($mOut -match 'Rollback') -and ($mOut -match 'Lightroom RAW 工具箱') -and ($mOut -match 'Lightroom RAW Toolkit')) ("Start-Toolkit.ps1 -Lang $lg shows env checks, toggles lang, and exits cleanly")
+        Assert-True (($mOut -notmatch '\{0\}') -and ($mOut -match 'ExifTool') -and ($mOut -match 'Rollback') -and ($mOut -match 'RAW & JPG 摄影清理与星标工具箱') -and ($mOut -match 'RAW & JPG Photo Toolkit')) ("Start-Toolkit.ps1 -Lang $lg shows env checks, toggles lang, and exits cleanly")
     }
 } finally {
     if (Test-Path -LiteralPath $tmpBase) {

@@ -10,6 +10,10 @@
 param(
     [string]$JpgRoot,
     [string]$CatalogPath,
+    [switch]$NoCatalog,
+    [string]$PixCakeDbRoot,
+    [ValidateSet('auto', 'db', 'files')]
+    [string]$RatingSource = 'auto',
     [string]$ExifToolPath,
     [int]$RecentDays,
     [string]$SubFolder,
@@ -49,12 +53,16 @@ if (-not (Test-Path -LiteralPath $JpgRoot -PathType Container)) {
 }
 $JpgRoot = (Resolve-Path -LiteralPath $JpgRoot).Path.TrimEnd('\', '/')
 
-$CatalogPath = Resolve-CatalogPath -ExplicitPath $CatalogPath -PhotoRoot $JpgRoot
-if (-not $CatalogPath -or -not (Test-Path -LiteralPath $CatalogPath -PathType Leaf)) {
-    Write-Host (T 'ErrNoCatalog' @($CatalogPath)) -ForegroundColor Red
-    exit 1
+$explicitCatalog = [bool]$CatalogPath
+if ($explicitCatalog) {
+    if (-not (Test-Path -LiteralPath $CatalogPath -PathType Leaf)) {
+        Write-Host (T 'ErrNoCatalog' @($CatalogPath)) -ForegroundColor Red
+        exit 1
+    }
+    $CatalogPath = (Resolve-Path -LiteralPath $CatalogPath).Path
+} elseif ($NoCatalog) {
+    $CatalogPath = $null
 }
-$CatalogPath = (Resolve-Path -LiteralPath $CatalogPath).Path
 
 $ExifToolPath = Resolve-ExifToolPath -ExplicitPath $ExifToolPath -ProjectRoot $projectRoot -ScriptDir $scriptDir
 if (-not $ExifToolPath -or -not (Test-Path -LiteralPath $ExifToolPath -PathType Leaf)) {
@@ -163,12 +171,18 @@ if (-not $useSidecar -and -not $NoBackup.IsPresent) {
     }
 }
 
+$sourceDesc = switch ($RatingSource) {
+    'db'    { T 'JpgSourceDbOnly' }
+    'files' { T 'JpgSourceFilesOnly' }
+    default { T 'JpgSourceAuto' }
+}
+
 Write-Host ""
 Write-Host (T 'JpgBanner') -ForegroundColor Cyan
-Write-Host (T 'JpgCatalog'  @($CatalogPath))
-Write-Host (T 'JpgRoot'     @($JpgRoot))
-Write-Host (T 'JpgScopeLine'@($scopeDesc))
-Write-Host (T 'JpgExifTool' @($ExifToolPath))
+Write-Host (T 'JpgRoot'      @($JpgRoot))
+Write-Host (T 'JpgScopeLine' @($scopeDesc))
+Write-Host (T 'JpgSourceLine'@($sourceDesc))
+Write-Host (T 'JpgExifTool'  @($ExifToolPath))
 if ($DryRun.IsPresent) {
     Write-Host (T 'JpgModeDry') -ForegroundColor Yellow
 } elseif ($useSidecar) {
@@ -180,28 +194,6 @@ if ($DryRun.IsPresent) {
 }
 Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host ""
-
-if (Test-Path -LiteralPath ($CatalogPath + '.lock')) {
-    Write-Host (T 'WarnLrRunning1') -ForegroundColor Red
-    Write-Host (T 'WarnLrRunning2') -ForegroundColor Red
-    Write-Host ""
-}
-
-Write-Host (T 'JpgReadingCat') -ForegroundColor DarkGray
-$filterExts = @('jpg', 'jpeg') + @((Get-DefaultRawExtensions) | ForEach-Object { $_.TrimStart('.') })
-try {
-    $ratings = Get-CatalogRatingMap -CatPath $CatalogPath -ExtensionFilter $filterExts -ProjectRoot $projectRoot -ScriptDir $scriptDir
-} catch {
-    Write-Host ("[ERROR] {0}" -f $_.Exception.Message) -ForegroundColor Red
-    exit 1
-}
-
-Write-Host (T 'JpgLoadedCat' @($ratings.Count)) -ForegroundColor Magenta
-
-if ($ratings.Count -eq 0) {
-    Write-Host (T 'JpgNoRatings') -ForegroundColor Yellow
-    exit 0
-}
 
 $jpgs = @(Get-ChildItem -LiteralPath $scanRoot -Recurse -File | Where-Object {
     $_.Extension -ieq '.jpg' -or $_.Extension -ieq '.jpeg'
@@ -228,6 +220,112 @@ if ($jpgs.Count -eq 0) {
 }
 
 Write-Host (T 'JpgFoundFiles' @($jpgs.Count)) -ForegroundColor DarkGray
+Write-Host (T 'JpgReadingCat') -ForegroundColor DarkGray
+
+$ratings   = @{}
+$dbLabels  = @()
+$filterExts = @('jpg', 'jpeg') + @((Get-DefaultRawExtensions) | ForEach-Object { $_.TrimStart('.') })
+if (-not $NoCatalog.IsPresent -and $RatingSource -ne 'files') {
+    try {
+        $dbRes = Get-AllSoftwareRatingMap -PhotoRoot $JpgRoot -ExplicitCatalogPath $(if ($explicitCatalog) { $CatalogPath } else { $null }) -PixCakeDbRoot $PixCakeDbRoot -ExtensionFilter $filterExts -ProjectRoot $projectRoot -ScriptDir $scriptDir
+        if ($dbRes.LockWarnings.Count -gt 0) {
+            Write-Host (T 'WarnLrRunning1') -ForegroundColor Red
+            Write-Host (T 'WarnLrRunning2') -ForegroundColor Red
+            Write-Host ""
+        }
+        $ratings  = $dbRes.Ratings
+        $dbLabels = $dbRes.Labels
+        foreach ($dt in $dbRes.Details) { Write-Host $dt -ForegroundColor DarkGray }
+    } catch {
+        Write-Host ("[ERROR] {0}" -f $_.Exception.Message) -ForegroundColor Red
+        exit 1
+    }
+}
+$catalogLabelText = if ($dbLabels.Count -gt 0) { $dbLabels -join '; ' } else { T 'JpgDbNone' }
+Write-Host (T 'JpgCatalog' @($catalogLabelText)) -ForegroundColor DarkGray
+
+# Fill missing entries from companion RAW / .xmp files (Sony IED, Bridge, Camera Raw, Capture One XMP, etc.)
+if ($RatingSource -ne 'db') {
+    $rawExts = Get-DefaultRawExtensions
+    $compExtSet = @{}
+    foreach ($re in $rawExts) { $compExtSet[$re] = $true }
+    foreach ($ie in @('.hif', '.heic')) { $compExtSet[$ie] = $true }
+
+    $compFilesToScan = New-Object System.Collections.Generic.List[string]
+    $compSeen        = @{}
+    $folderFilesMap  = @{}
+
+    foreach ($jpg in $jpgs) {
+        $dirTrim   = $jpg.DirectoryName.TrimEnd('\', '/')
+        $dirLower  = $dirTrim.ToLower()
+        $baseName  = [System.IO.Path]::GetFileNameWithoutExtension($jpg.Name)
+        $baseLower = $baseName.ToLower()
+        $key       = $dirLower + '|' + $baseLower
+        if ($ratings.ContainsKey($key) -and $ratings[$key] -ge 1) { continue }
+
+        if (-not $folderFilesMap.ContainsKey($dirLower)) {
+            $mapInDir = @{}
+            foreach ($f in (Get-ChildItem -LiteralPath $jpg.DirectoryName -File -ErrorAction SilentlyContinue)) {
+                $mapInDir[$f.Name.ToLower()] = $f.FullName
+            }
+            $folderFilesMap[$dirLower] = $mapInDir
+        }
+        $dirMap = $folderFilesMap[$dirLower]
+
+        foreach ($ce in $compExtSet.Keys) {
+            $ck = $baseLower + $ce
+            if ($dirMap.ContainsKey($ck)) {
+                $p = $dirMap[$ck]
+                if (-not $compSeen.ContainsKey($p)) { $compSeen[$p] = $true; $compFilesToScan.Add($p) }
+                $rx = $ck + '.xmp'
+                if ($dirMap.ContainsKey($rx)) {
+                    $xp = $dirMap[$rx]
+                    if (-not $compSeen.ContainsKey($xp)) { $compSeen[$xp] = $true; $compFilesToScan.Add($xp) }
+                }
+            }
+        }
+        $bx = $baseLower + '.xmp'
+        if ($dirMap.ContainsKey($bx)) {
+            $xp = $dirMap[$bx]
+            $allowXmp = $true
+            if ($useSidecar) {
+                $belongsJpg = Test-SidecarBelongsToJpg -XmpPath $xp -JpgPath $jpg.FullName -DirFileSet $dirMap
+                if ($belongsJpg -eq $true) { $allowXmp = $false }
+            }
+            if ($allowXmp -and -not $compSeen.ContainsKey($xp)) {
+                $compSeen[$xp] = $true
+                $compFilesToScan.Add($xp)
+            }
+        }
+    }
+
+    if ($compFilesToScan.Count -gt 0) {
+        Write-Host (T 'JpgReadingRawXmp' @($compFilesToScan.Count)) -ForegroundColor DarkGray
+        $compMap = Get-FileRatingMap -FilePaths ($compFilesToScan.ToArray()) -ExifTool $ExifToolPath
+        foreach ($fp in $compMap.Keys) {
+            $r = [int]$compMap[$fp]
+            if ($r -lt 1) { continue }
+            $fDirLower = ([IO.Path]::GetDirectoryName($fp)).TrimEnd('\', '/').ToLower()
+            $fn        = [IO.Path]::GetFileName($fp)
+            $stem      = [IO.Path]::GetFileNameWithoutExtension($fn)
+            if ([IO.Path]::GetExtension($fn) -ieq '.xmp') {
+                $stemExt = [IO.Path]::GetExtension($stem).ToLower()
+                if ($stemExt -and $compExtSet.ContainsKey($stemExt)) {
+                    $stem = [IO.Path]::GetFileNameWithoutExtension($stem)
+                }
+            }
+            $ckey = $fDirLower + '|' + $stem.ToLower()
+            $ratings[$ckey] = Merge-Rating $ratings[$ckey] $r
+        }
+    }
+}
+
+Write-Host (T 'JpgLoadedCat' @($ratings.Count)) -ForegroundColor Magenta
+
+if ($ratings.Count -eq 0) {
+    Write-Host (T 'JpgNoRatings') -ForegroundColor Yellow
+    exit 0
+}
 
 $matchedItems = New-Object System.Collections.Generic.List[object]
 $inspectList  = New-Object System.Collections.Generic.List[string]
@@ -458,7 +556,7 @@ $logLines.Add("# Root: $JpgRoot")
 $logLines.Add("# Scope: $scopeDesc")
 $logLines.Add("# Target: $(if ($useSidecar) {'XMP sidecar'} else {'JPG embedded'})")
 $logLines.Add("# Mode: $(if ($DryRun.IsPresent) {'DryRun'} else {'LIVE'})")
-$logLines.Add("# Catalog: $CatalogPath")
+$logLines.Add("# Catalogs: $catalogLabelText")
 $logLines.Add("# BackupDir: $(if ($effectiveBackupDir) {$effectiveBackupDir} else {'none'})")
 $logLines.Add("# Matched: $($matchedItems.Count)  ToWrite: $totalToWrite (new=$totalNew, upd=$totalUpdate)  SkippedSame: $totalSkipSame  SafeSkip: $totalSafeSkip  NoRating: $noRating")
 $logLines.Add("# ----")

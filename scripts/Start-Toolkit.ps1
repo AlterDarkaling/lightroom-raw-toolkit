@@ -9,6 +9,7 @@ param(
     [string]$RootPath,
     [string]$ExifToolPath,
     [string]$CatalogPath,
+    [string]$PixCakeDbRoot,
     [ValidateSet('auto', 'zh', 'en')]
     [string]$Lang = 'auto',
     [string[]]$AutoChoices,
@@ -75,7 +76,13 @@ while ($true) {
     $checkCat = Resolve-CatalogPath -ExplicitPath $CatalogPath -PhotoRoot $currentRoot
     $catReady = ($checkCat -and (Test-Path -LiteralPath $checkCat -PathType Leaf))
     $catLock  = ($catReady -and (Test-Path -LiteralPath ($checkCat + '.lock')))
+    $c1Cats   = if ($CatalogPath) { @() } else { Resolve-CaptureOneCatalogPaths -ExplicitPath $null -PhotoRoot $currentRoot }
+    $pxDbs    = if ($CatalogPath) { @() } else { Resolve-PixCakeDbPaths -PixCakeDbRoot $PixCakeDbRoot }
     $dbReady  = ((Resolve-SqliteCliPath -ProjectRoot $projectRoot -ScriptDir $scriptDir) -or (Resolve-PythonCliPath))
+
+    $otherDbs = New-Object System.Collections.Generic.List[string]
+    foreach ($c1 in $c1Cats) { $otherDbs.Add("Capture One ($(Split-Path -Leaf $c1))") }
+    if ($pxDbs.Count -gt 0)   { $otherDbs.Add("PixCake ($($pxDbs.Count) DBs)") }
 
     Write-Host ""
     Write-Host (T 'MenuTitle') -ForegroundColor Cyan
@@ -90,7 +97,10 @@ while ($true) {
         Write-Host (T 'MenuEnvCatLocked' @($checkCat)) -ForegroundColor Yellow
     } elseif ($catReady) {
         Write-Host (T 'MenuEnvCatOk' @($checkCat)) -ForegroundColor Green
-    } else {
+    }
+    if ($otherDbs.Count -gt 0) {
+        Write-Host (T 'MenuEnvDbFound' @($otherDbs -join ', ')) -ForegroundColor Green
+    } elseif (-not $catReady) {
         Write-Host (T 'MenuEnvCatMissing') -ForegroundColor DarkGray
     }
     if (-not $dbReady) {
@@ -148,8 +158,9 @@ while ($true) {
             RootPath = $currentRoot
             Lang     = $currentLang
         }
-        if ($ExifToolPath) { $params['ExifToolPath'] = $ExifToolPath }
-        if ($CatalogPath)  { $params['CatalogPath']  = $CatalogPath }
+        if ($ExifToolPath)  { $params['ExifToolPath']  = $ExifToolPath }
+        if ($CatalogPath)   { $params['CatalogPath']   = $CatalogPath }
+        if ($PixCakeDbRoot) { $params['PixCakeDbRoot'] = $PixCakeDbRoot }
         & $cleanScript @params
         $null = Read-Host (T 'MenuPressEnter')
     } elseif ($choice -eq '2') {
@@ -157,8 +168,9 @@ while ($true) {
             JpgRoot = $currentRoot
             Lang    = $currentLang
         }
-        if ($ExifToolPath) { $params['ExifToolPath'] = $ExifToolPath }
-        if ($CatalogPath)  { $params['CatalogPath']  = $CatalogPath }
+        if ($ExifToolPath)  { $params['ExifToolPath']  = $ExifToolPath }
+        if ($CatalogPath)   { $params['CatalogPath']   = $CatalogPath }
+        if ($PixCakeDbRoot) { $params['PixCakeDbRoot'] = $PixCakeDbRoot }
         & $restoreScript @params
         $null = Read-Host (T 'MenuPressEnter')
     } elseif ($choice -eq '3') {

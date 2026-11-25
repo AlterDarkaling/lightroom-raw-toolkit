@@ -55,19 +55,20 @@ $script:LrtMessages = @{
         HeaderRule            = ' Rule    : {0}'
         HeaderRating          = ' Rating  : {0}'
         RatingDelete          = 'DELETE star-rated files too (-DeleteRated)'
-        RatingKeep            = 'KEEP star-rated files (RAW + XMP + JPG/HIF + Lightroom)'
+        RatingKeep            = 'KEEP star-rated files (RAW + XMP + JPG/HIF + software DBs)'
         HeaderRawOnly         = ' RAW-only: {0}'
         RawOnlyDelete         = 'DELETE RAW-only files too (-DeleteRawOnly)'
         RawOnlyKeep           = 'KEEP RAW-only files (no companion JPG/HIF)'
-        HeaderCatalog         = ' Catalog : {0}'
+        HeaderCatalog         = ' Databases: {0}'
         CatSkipped            = 'skipped (-DeleteRated)'
         CatDisabled           = 'disabled (-NoCatalog)'
-        CatNotFound           = 'not found (ExifTool only)'
+        CatNotFound           = 'none found (ExifTool checks RAW / XMP / JPG)'
         HeaderMode            = ' Mode    : {0}'
         ModeDryRun            = '[DRY-RUN: nothing will be deleted]'
         ModeLive              = '[LIVE: will move to Recycle Bin after confirmation]'
-        StatusReadingCatalog  = '  Reading star ratings from Lightroom catalog...'
-        StatusLoadedCatalog   = '  Loaded {0} rated/picked entry(ies) from Lightroom catalog.'
+        StatusReadingCatalog  = '  Reading star ratings from photo software database(s)...'
+        StatusLoadedCatalog   = '  Loaded {0} rated/picked entry(ies) from database(s).'
+        StatusLoadedDbItem    = '    + {0}: {1} rated/picked entry(ies)'
         StatusReadingExif     = '  Reading star ratings via ExifTool ({0}/{1})...'
         NothingAllKept        = 'All {0} candidate RAW file(s) are protected and kept (rated: {1}, unreadable: {2}, raw-only: {3}).'
         NothingFound          = 'No matching RAW files found. Nothing to do.'
@@ -82,7 +83,7 @@ $script:LrtMessages = @{
         PreviewFormats        = '  RAW formats            : {0}'
         PreviewSidecars       = '  Sidecar XMPs to recycle: {0}'
         PreviewAcrs           = '  ACR caches to recycle  : {0}'
-        PreviewKeptRated      = '  Kept (star-rated)      : {0} (in above groups: {1}, older groups: {2}, LR catalog hits: {3})'
+        PreviewKeptRated      = '  Kept (star-rated)      : {0} (in above groups: {1}, older groups: {2}, DB hits: {3})'
         PreviewKeptUnknown    = '  Kept (unreadable)      : {0}'
         PreviewKeptRawOnly    = '  Kept (RAW-only)        : {0}'
         PreviewSampleHeader   = '  File preview (showing first {0} of {1}):'
@@ -105,8 +106,13 @@ $script:LrtMessages = @{
         DoneLiveKeptRawOnly   = 'Kept {0} RAW-only file(s).'
         DoneFailed            = 'Failed ({0}):'
         DoneLogPath           = 'Log file: {0}'
-        JpgBanner             = '===== Restore Lightroom Star Ratings to JPG ====='
-        JpgCatalog            = ' Catalog : {0}'
+        JpgBanner             = '===== Sync Star Ratings to JPG ====='
+        JpgCatalog            = ' DBs     : {0}'
+        JpgDbNone             = 'none (reading companion RAW / .xmp files)'
+        JpgSourceLine         = ' Source  : {0}'
+        JpgSourceAuto         = 'Auto (Software DBs + companion RAW / .xmp)'
+        JpgSourceDbOnly       = 'Software DBs only (-RatingSource db)'
+        JpgSourceFilesOnly    = 'Companion RAW / .xmp files only (-RatingSource files)'
         JpgRoot               = ' JPG Root: {0}'
         JpgExifTool           = ' ExifTool: {0}'
         JpgPromptTarget       = 'Write mode: [1] Embed into JPG (Win/Albums/LR visible)  [2] Write .xmp sidecar only (zero JPG changes)  (0/Enter = cancel)'
@@ -123,9 +129,10 @@ $script:LrtMessages = @{
         JpgModeLiveJpgBackup  = ' Mode    : [LIVE -> JPG: preserve mtime (-P), centralized backup -> {0}]'
         JpgModeLiveJpgNoBackup= ' Mode    : [LIVE -> JPG: preserve mtime (-P), in-place overwrite (-NoBackup)]'
         JpgModeLiveSidecar    = ' Mode    : [LIVE -> .xmp sidecar only: JPG bytes untouched]'
-        JpgReadingCat         = 'Extracting ratings from Lightroom catalog...'
-        JpgLoadedCat          = 'Loaded {0} folder+name rated/picked entry(ies) from catalog.'
-        JpgNoRatings          = '[INFO] No rated entries in catalog. Nothing to restore.'
+        JpgReadingCat         = 'Reading star ratings from software DBs & companion files...'
+        JpgReadingRawXmp      = 'Scanning {0} companion RAW / .xmp file(s) via ExifTool...'
+        JpgLoadedCat          = 'Loaded {0} folder+name star rating(s) for matching JPGs.'
+        JpgNoRatings          = '[INFO] No star ratings found from DBs or companion RAW/.xmp files. Nothing to sync.'
         JpgNoFiles            = '[INFO] No JPG files found under {0}.'
         JpgFoundFiles         = 'Found {0} JPG file(s).'
         JpgScanningExisting   = 'Checking existing ratings on {0} matched file(s) via ExifTool...'
@@ -184,17 +191,18 @@ $script:LrtMessages = @{
         RbBackupKept          = 'Backup folder kept at: {0}'
         RbBackupRemoved       = 'Removed backup folder: {0}'
         RbCloudTip            = 'Tip: If your cloud drive still shows pending uploads, pause & resume sync to refresh.'
-        MenuTitle             = '=========== Lightroom RAW Toolkit ==========='
+        MenuTitle             = '=========== RAW & JPG Photo Toolkit ==========='
         MenuCurrentRoot       = ' Photo folder: {0}'
         MenuCurrentLang       = ' Language    : {0}'
         MenuEnvExifOk         = ' ExifTool    : OK ({0})'
         MenuEnvExifMissing    = ' ExifTool    : NOT FOUND (place exiftool.exe in tools\)'
         MenuEnvCatOk          = ' LR Catalog  : {0}'
         MenuEnvCatLocked      = ' LR Catalog  : {0}  [Lightroom is running!]'
-        MenuEnvCatMissing     = ' LR Catalog  : not found (will use ExifTool only)'
-        MenuEnvNoSqlite       = ' [WARN] Neither sqlite3.exe nor Python 3 found; .lrcat reading unavailable.'
+        MenuEnvCatMissing     = ' Databases   : none found (ExifTool still reads RAW / XMP / JPG ratings)'
+        MenuEnvDbFound        = ' Databases   : {0}'
+        MenuEnvNoSqlite       = ' [WARN] Neither sqlite3.exe nor Python 3 found; catalog DB reading unavailable.'
         MenuOptClean          = '  [1] Clean unrated RAW files (move to Recycle Bin)'
-        MenuOptRestore        = '  [2] Restore Lightroom star ratings into JPGs'
+        MenuOptRestore        = '  [2] Sync star ratings to JPG (LR / Capture One / PixCake / XMP)'
         MenuOptRollback       = '  [3] Rollback JPG backups (restore exact original JPGs)'
         MenuOptSwitchRoot     = '  [4] Switch target photo folder'
         MenuOptInstallEt      = '  [I] Auto-download & install ExifTool into tools\'
@@ -264,19 +272,20 @@ $script:LrtMessages = @{
         HeaderRule            = ' 清理规则: {0}'
         HeaderRating          = ' 星标策略: {0}'
         RatingDelete          = '连同打星文件一起删除 (-DeleteRated)'
-        RatingKeep            = '保留打星文件（检查 RAW + XMP + JPG/HIF + LR目录）'
+        RatingKeep            = '保留打星文件（检查 RAW + XMP + JPG/HIF + 软件图库）'
         HeaderRawOnly         = ' 纯 RAW  : {0}'
         RawOnlyDelete         = '连同纯 RAW 一起删除 (-DeleteRawOnly)'
         RawOnlyKeep           = '保留无同名 JPG/HIF 的纯 RAW'
-        HeaderCatalog         = ' LR 目录 : {0}'
+        HeaderCatalog         = ' 软件图库: {0}'
         CatSkipped            = '已跳过 (-DeleteRated)'
         CatDisabled           = '已禁用 (-NoCatalog)'
-        CatNotFound           = '未找到（仅使用 ExifTool 检查）'
+        CatNotFound           = '未发现（由 ExifTool 直接检查 RAW / XMP / JPG）'
         HeaderMode            = ' 运行模式: {0}'
         ModeDryRun            = '[预览模式：不会删除任何文件]'
         ModeLive              = '[正式模式：确认后移至回收站]'
-        StatusReadingCatalog  = '  正在读取 Lightroom 目录星标...'
-        StatusLoadedCatalog   = '  已从 Lightroom 目录加载 {0} 条打星/旗标记录。'
+        StatusReadingCatalog  = '  正在读取摄影软件数据库星标...'
+        StatusLoadedCatalog   = '  已从软件图库合计加载 {0} 条打星/标记记录。'
+        StatusLoadedDbItem    = '    + {0}: {1} 条打星/标记记录'
         StatusReadingExif     = '  正在通过 ExifTool 读取星标 ({0}/{1})...'
         NothingAllKept        = '全部 {0} 个候选 RAW 文件均受保护并已保留（打星: {1}, 无法读取: {2}, 纯RAW: {3}），无需清理。'
         NothingFound          = '没有符合条件的 RAW 文件，无需清理。'
@@ -291,7 +300,7 @@ $script:LrtMessages = @{
         PreviewFormats        = '  待删格式分布     : {0}'
         PreviewSidecars       = '  同步清理 XMP 边车: {0} 个'
         PreviewAcrs           = '  同步清理 ACR 缓存: {0} 个'
-        PreviewKeptRated      = '  已保留（打星）   : {0} 个（以上分组中 {1} 个，更早历史分组 {2} 个，其中 LR 目录命中 {3} 个）'
+        PreviewKeptRated      = '  已保留（打星）   : {0} 个（以上分组中 {1} 个，更早历史分组 {2} 个，其中数据库命中 {3} 个）'
         PreviewKeptUnknown    = '  已保留（无法读取）: {0} 个'
         PreviewKeptRawOnly    = '  已保留（纯 RAW）  : {0} 个'
         PreviewSampleHeader   = '  待处理文件预览（显示前 {0} / 共 {1} 个）：'
@@ -314,8 +323,13 @@ $script:LrtMessages = @{
         DoneLiveKeptRawOnly   = '已保留 {0} 个纯 RAW 文件。'
         DoneFailed            = '失败 {0} 个：'
         DoneLogPath           = '日志文件: {0}'
-        JpgBanner             = '===== 将 Lightroom 星标恢复写入 JPG ====='
-        JpgCatalog            = ' LR 目录 : {0}'
+        JpgBanner             = '===== 将星标同步写入 JPG ====='
+        JpgCatalog            = ' 软件图库: {0}'
+        JpgDbNone             = '未检测到图库（将直接扫描同目录 RAW / .xmp）'
+        JpgSourceLine         = ' 星标来源: {0}'
+        JpgSourceAuto         = '自动融合（软件数据库 + 同目录 RAW / .xmp）'
+        JpgSourceDbOnly       = '仅软件数据库 (-RatingSource db)'
+        JpgSourceFilesOnly    = '仅同目录 RAW / .xmp 文件 (-RatingSource files)'
         JpgRoot               = ' JPG 目录: {0}'
         JpgExifTool           = ' ExifTool: {0}'
         JpgPromptTarget       = '写入方式: [1] 写入 JPG 文件（Win/相册/LR通用；会改字节）  [2] 仅写 .xmp 边车（完全不改 JPG）  （0/回车 = 取消）'
@@ -332,9 +346,10 @@ $script:LrtMessages = @{
         JpgModeLiveJpgBackup  = ' 运行模式: [正式写入 JPG：保留原修改时间 (-P)，原图集中备份到 {0}]'
         JpgModeLiveJpgNoBackup= ' 运行模式: [正式写入 JPG：保留原修改时间 (-P)，原地覆盖 (-NoBackup)]'
         JpgModeLiveSidecar    = ' 运行模式: [正式写入 .xmp 边车：完全不改动 JPG 原文件]'
-        JpgReadingCat         = '正在从 Lightroom 目录读取星标...'
-        JpgLoadedCat          = '已从目录加载 {0} 条路径精确匹配的打星/旗标记录。'
-        JpgNoRatings          = '[提示] 目录中没有打星记录，无需恢复。'
+        JpgReadingCat         = '正在从软件数据库及同目录 RAW/.xmp 读取星标...'
+        JpgReadingRawXmp      = '正在通过 ExifTool 检查 {0} 个同名 RAW / .xmp 星标...'
+        JpgLoadedCat          = '已加载 {0} 条可匹配当前目录 JPG 的星标记录。'
+        JpgNoRatings          = '[提示] 未在数据库或同目录 RAW/.xmp 中找到任何星标记录，无需同步。'
         JpgNoFiles            = '[提示] 在 {0} 下未找到 JPG 文件。'
         JpgFoundFiles         = '共扫描到 {0} 个 JPG 文件。'
         JpgScanningExisting   = '正在通过 ExifTool 检查 {0} 个匹配文件的现有星标...'
@@ -393,17 +408,18 @@ $script:LrtMessages = @{
         RbBackupKept          = '原备份目录仍保留于: {0}'
         RbBackupRemoved       = '已清理备份目录: {0}'
         RbCloudTip            = '提示：如网盘上传队列未立即清空，暂停再恢复同步即可重新核对哈希。'
-        MenuTitle             = '=========== Lightroom RAW 工具箱 ==========='
+        MenuTitle             = '=========== RAW & JPG 摄影清理与星标工具箱 ==========='
         MenuCurrentRoot       = ' 当前照片目录: {0}'
         MenuCurrentLang       = ' 界面语言    : {0}'
         MenuEnvExifOk         = ' ExifTool    : 已就绪 ({0})'
         MenuEnvExifMissing    = ' ExifTool    : 未找到（请将 exiftool.exe 放入 tools\ 目录）'
         MenuEnvCatOk          = ' LR 目录     : {0}'
         MenuEnvCatLocked      = ' LR 目录     : {0}  [检测到 Lightroom 正在运行!]'
-        MenuEnvCatMissing     = ' LR 目录     : 未找到（清理时仅用 ExifTool 检查）'
-        MenuEnvNoSqlite       = ' [提示] 未检测到 sqlite3.exe 或 Python 3，暂时无法读取 .lrcat 目录。'
+        MenuEnvCatMissing     = ' 软件图库    : 未发现（仍可直接读取 RAW / XMP / JPG 星标）'
+        MenuEnvDbFound        = ' 已识别图库  : {0}'
+        MenuEnvNoSqlite       = ' [提示] 未检测到 sqlite3.exe 或 Python 3，暂时无法读取桌面软件数据库。'
         MenuOptClean          = '  [1] 清理无星标 RAW 文件（移至回收站）'
-        MenuOptRestore        = '  [2] 将 Lightroom 星标恢复写入 JPG'
+        MenuOptRestore        = '  [2] 将星标同步写入 JPG（LR / Capture One / 像素蛋糕 / RAW·XMP）'
         MenuOptRollback       = '  [3] 从 backups\ 一键回滚 JPG 原图备份'
         MenuOptSwitchRoot     = '  [4] 切换目标照片文件夹'
         MenuOptInstallEt      = '  [I] 一键自动下载并配置 ExifTool 到 tools\'
@@ -623,6 +639,65 @@ function Resolve-CatalogPath([string]$ExplicitPath, [string]$PhotoRoot) {
     return $null
 }
 
+function Resolve-CaptureOneCatalogPaths([string]$ExplicitPath, [string]$PhotoRoot) {
+    if ($ExplicitPath) {
+        if ($ExplicitPath -imatch '\.(cocatalogdb|cosessiondb)$') { return @($ExplicitPath) }
+        return @()
+    }
+    $searchDirs = New-Object System.Collections.Generic.List[string]
+    if ($PhotoRoot -and (Test-Path -LiteralPath $PhotoRoot -PathType Container)) {
+        $searchDirs.Add($PhotoRoot)
+        $parent = [IO.Path]::GetDirectoryName($PhotoRoot.TrimEnd('\', '/'))
+        if ($parent -and (Test-Path -LiteralPath $parent -PathType Container)) {
+            foreach ($d in (Get-ChildItem -LiteralPath $parent -Directory -Filter 'Capture One*' -ErrorAction SilentlyContinue)) {
+                $searchDirs.Add($d.FullName)
+            }
+        }
+    }
+    foreach ($special in @([Environment]::GetFolderPath('MyDocuments'), [Environment]::GetFolderPath('MyPictures'))) {
+        if ($special -and (Test-Path -LiteralPath $special -PathType Container)) {
+            foreach ($d in (Get-ChildItem -LiteralPath $special -Directory -Filter 'Capture One*' -ErrorAction SilentlyContinue)) {
+                $searchDirs.Add($d.FullName)
+            }
+        }
+    }
+
+    $found = New-Object System.Collections.Generic.List[object]
+    $seen  = @{}
+    foreach ($sd in $searchDirs) {
+        if (-not $sd -or -not (Test-Path -LiteralPath $sd -PathType Container)) { continue }
+        $items = @(Get-ChildItem -LiteralPath $sd -Depth 2 -File -ErrorAction SilentlyContinue | Where-Object {
+            ($_.Extension -ieq '.cocatalogdb' -or $_.Extension -ieq '.cosessiondb') -and
+            ($_.Name -inotmatch '(Backup|Previews)') -and
+            ($_.DirectoryName -inotmatch 'Backup')
+        })
+        foreach ($it in $items) {
+            $k = $it.FullName.ToLower()
+            if (-not $seen.ContainsKey($k)) {
+                $seen[$k] = $true
+                $found.Add($it)
+            }
+        }
+    }
+    $sorted = @($found | Sort-Object LastWriteTime -Descending | Select-Object -First 5 | ForEach-Object { $_.FullName })
+    return $sorted
+}
+
+function Resolve-PixCakeDbPaths([string]$PixCakeDbRoot) {
+    if ($PixCakeDbRoot -ieq 'NONE') { return @() }
+    $root = $PixCakeDbRoot
+    if (-not $root) {
+        $appData = [Environment]::GetFolderPath('ApplicationData')
+        if (-not $appData) { return @() }
+        $root = Join-Path $appData 'PixCake-qt_pro\db'
+    }
+    if (-not (Test-Path -LiteralPath $root -PathType Container)) { return @() }
+    $dbs = @(Get-ChildItem -LiteralPath $root -Filter 'project.db' -Recurse -File -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending |
+        ForEach-Object { $_.FullName })
+    return $dbs
+}
+
 function Test-SidecarBelongsToRaw([string]$XmpPath, [string]$RawPath, [hashtable]$FolderFilesLower) {
     $t = $null
     try {
@@ -792,7 +867,7 @@ function Get-FileRatingMap {
         try {
             $ErrorActionPreference = 'Continue'
             [IO.File]::WriteAllLines($argFile, $slice, $utf8NoBom)
-            $json = (& $ExifTool -fast -q -charset filename=UTF8 -json -a -G1 -FileType -XMP:Rating -EXIF:Rating -EXIF:RatingPercent -IPTC:StarRating -@ $argFile 2>$null) | Out-String
+            $json = (& $ExifTool -fast -q -charset filename=UTF8 -json -a -G1 -FileType -Rating -RatingPercent -StarRating -Pick -@ $argFile 2>$null) | Out-String
             if ($LASTEXITCODE -le 1 -and $json) {
                 $parsed = $json | ConvertFrom-Json
                 if ($parsed -isnot [System.Array]) { $parsed = @($parsed) }
@@ -851,7 +926,7 @@ function Get-RawRatingMap {
         try {
             $ErrorActionPreference = 'Continue'
             [IO.File]::WriteAllLines($argFile, $slice, $utf8NoBom)
-            $json = (& $ExifTool -fast -q -charset filename=UTF8 -json -a -G1 -FileType -XMP:Rating -Sony:Rating -EXIF:Rating -EXIF:RatingPercent -IPTC:StarRating -XMP:Pick -@ $argFile 2>$null) | Out-String
+            $json = (& $ExifTool -fast -q -charset filename=UTF8 -json -a -G1 -FileType -Rating -RatingPercent -StarRating -Pick -@ $argFile 2>$null) | Out-String
             if ($LASTEXITCODE -le 1 -and $json) {
                 $parsed = $json | ConvertFrom-Json
                 if ($parsed -isnot [System.Array]) { $parsed = @($parsed) }
@@ -1045,4 +1120,304 @@ GROUP BY rf.absolutePath, fld.pathFromRoot, LOWER(f.baseName);
         Remove-Item -LiteralPath $tmpOut               -ErrorAction SilentlyContinue
     }
     return $map
+}
+
+function Get-CaptureOneRatingMap {
+    param(
+        [string]$CatPath,
+        [string[]]$ExtensionFilter,
+        [string]$ProjectRoot,
+        [string]$ScriptDir
+    )
+    $map = @{}
+    if (-not $CatPath -or -not (Test-Path -LiteralPath $CatPath -PathType Leaf)) { return $map }
+
+    $sqliteExe = Resolve-SqliteCliPath -ProjectRoot $ProjectRoot -ScriptDir $ScriptDir
+    $pyExe = $null
+    if (-not $sqliteExe) {
+        $pyExe = Resolve-PythonCliPath
+        if (-not $pyExe) {
+            throw (T 'ErrNoSqliteReader' @($CatPath))
+        }
+    }
+
+    $extSet = $null
+    if ($ExtensionFilter -and $ExtensionFilter.Count -gt 0) {
+        $extSet = @{}
+        foreach ($e in $ExtensionFilter) { $extSet[$e.TrimStart('.').ToLower()] = $true }
+    }
+
+    $catDir = [IO.Path]::GetDirectoryName($CatPath)
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+    $tmpScript = Join-Path $env:TEMP ("lrt_c1_q_{0}" -f $PID)
+    $tmpOut    = Join-Path $env:TEMP ("lrt_c1_o_{0}.txt" -f $PID)
+    $prevEap   = $ErrorActionPreference
+
+    try {
+        $ErrorActionPreference = 'Continue'
+        if ($sqliteExe) {
+            $tmpSql = $tmpScript + '.sql'
+            $outSlash = $tmpOut.Replace('\', '/')
+            $sql = @"
+.timeout 5000
+.mode list
+.separator |
+.output $outSlash
+SELECT COALESCE(p.ZWINROOT, ''), COALESCE(p.ZRELATIVEPATH, ''), i.ZIMAGEFILENAME,
+       MAX(CAST(COALESCE(m.ZBASIC_RATING, 0) AS INTEGER))
+FROM ZVARIANTMETADATA m
+JOIN ZVARIANTLAYER l ON m.ZLAYER = l.Z_PK
+JOIN ZVARIANT v ON l.ZVARIANT = v.Z_PK
+JOIN ZIMAGE i ON v.ZIMAGE = i.Z_PK
+JOIN ZPATHLOCATION p ON i.ZIMAGELOCATION = p.Z_PK
+WHERE COALESCE(m.ZBASIC_RATING, 0) >= 1
+  AND COALESCE(i.ZISTRASHED, 0) = 0
+GROUP BY p.Z_PK, LOWER(i.ZIMAGEFILENAME);
+.output stdout
+"@
+            [IO.File]::WriteAllText($tmpSql, $sql, $utf8NoBom)
+            $errOut = (& $sqliteExe -readonly $CatPath ".read $($tmpSql.Replace('\', '/'))" 2>&1) | Out-String
+            if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $tmpOut)) {
+                throw (T 'ErrCatalogRead' @($LASTEXITCODE, $errOut))
+            }
+        } else {
+            $tmpPy = $tmpScript + '.py'
+            [string[]]$pyLines = @(
+                "import os, sqlite3, sys",
+                "cat = sys.argv[1]",
+                "outp = sys.argv[2]",
+                "cat_dir = sys.argv[3]",
+                "uri = 'file:' + cat.replace('\\', '/')",
+                "con = sqlite3.connect(uri + '?mode=ro', uri=True, timeout=5.0)",
+                "cur = con.cursor()",
+                "q = '''SELECT COALESCE(p.ZWINROOT, ''), COALESCE(p.ZRELATIVEPATH, ''), i.ZIMAGEFILENAME,",
+                "       MAX(CAST(COALESCE(m.ZBASIC_RATING, 0) AS INTEGER))",
+                "       FROM ZVARIANTMETADATA m",
+                "       JOIN ZVARIANTLAYER l ON m.ZLAYER = l.Z_PK",
+                "       JOIN ZVARIANT v ON l.ZVARIANT = v.Z_PK",
+                "       JOIN ZIMAGE i ON v.ZIMAGE = i.Z_PK",
+                "       JOIN ZPATHLOCATION p ON i.ZIMAGELOCATION = p.Z_PK",
+                "       WHERE COALESCE(m.ZBASIC_RATING, 0) >= 1",
+                "         AND COALESCE(i.ZISTRASHED, 0) = 0",
+                "       GROUP BY p.Z_PK, LOWER(i.ZIMAGEFILENAME)'''",
+                "rows = []",
+                "for winroot, relp, fn, rt in cur.execute(q):",
+                "    base_root = winroot.strip() if winroot and winroot.strip() else cat_dir",
+                "    rel_clean = (relp or '').strip().lstrip('\\\\/')",
+                "    fd = os.path.normpath(os.path.join(base_root, rel_clean)).rstrip('\\\\/').lower()",
+                "    rows.append(fd + '|' + fn + '|' + str(rt))",
+                "con.close()",
+                "with open(outp, 'w', encoding='utf-8') as fh:",
+                "    fh.write('\n'.join(rows))"
+            )
+            [IO.File]::WriteAllLines($tmpPy, $pyLines, $utf8NoBom)
+            $errOut = (& $pyExe $tmpPy $CatPath $tmpOut $catDir 2>&1) | Out-String
+            if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $tmpOut)) {
+                throw (T 'ErrCatalogRead' @($LASTEXITCODE, $errOut))
+            }
+        }
+
+        $lines = [IO.File]::ReadAllLines($tmpOut, [System.Text.Encoding]::UTF8)
+        foreach ($line in $lines) {
+            if (-not $line) { continue }
+            $parts = $line.Split('|')
+            $dirPart = ''
+            $fnPart  = ''
+            $rtPart  = ''
+            if ($parts.Length -eq 4 -and $sqliteExe) {
+                $baseRoot = if ($parts[0].Trim()) { $parts[0].Trim() } else { $catDir }
+                $relClean = $parts[1].Trim().TrimStart('\', '/')
+                $dirPart = if ($relClean) { Join-Path $baseRoot $relClean } else { $baseRoot }
+                $fnPart  = $parts[2].Trim()
+                $rtPart  = $parts[3].Trim()
+            } elseif ($parts.Length -ge 3) {
+                $dirPart = $parts[0].Trim()
+                $fnPart  = $parts[1].Trim()
+                $rtPart  = $parts[2].Trim()
+            } else { continue }
+
+            if (-not $fnPart) { continue }
+            $extBare = [IO.Path]::GetExtension($fnPart).TrimStart('.').ToLower()
+            if ($extSet -and -not $extSet.ContainsKey($extBare)) { continue }
+            try { $dirPart = [IO.Path]::GetFullPath($dirPart) } catch {}
+            $baseLower = [IO.Path]::GetFileNameWithoutExtension($fnPart).ToLower()
+            $key = $dirPart.TrimEnd('\', '/').ToLower() + '|' + $baseLower
+            $rt = 0
+            [void][int]::TryParse($rtPart, [ref]$rt)
+            if ($rt -ge 1) {
+                $map[$key] = Merge-Rating $map[$key] $rt
+            }
+        }
+    } finally {
+        $ErrorActionPreference = $prevEap
+        Remove-Item -LiteralPath ($tmpScript + '.sql') -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath ($tmpScript + '.py')  -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $tmpOut               -ErrorAction SilentlyContinue
+    }
+    return $map
+}
+
+function Get-PixCakeRatingMap {
+    param(
+        [string[]]$DbPaths,
+        [string[]]$ExtensionFilter,
+        [string]$ScopeRoot,
+        [string]$ProjectRoot,
+        [string]$ScriptDir
+    )
+    $map = @{}
+    if (-not $DbPaths -or $DbPaths.Count -eq 0) { return $map }
+
+    $pyExe = Resolve-PythonCliPath
+    $sqliteExe = if (-not $pyExe) { Resolve-SqliteCliPath -ProjectRoot $ProjectRoot -ScriptDir $ScriptDir } else { $null }
+    if (-not $pyExe -and -not $sqliteExe) { return $map }
+
+    $extSet = $null
+    if ($ExtensionFilter -and $ExtensionFilter.Count -gt 0) {
+        $extSet = @{}
+        foreach ($e in $ExtensionFilter) { $extSet[$e.TrimStart('.').ToLower()] = $true }
+    }
+    $scopeNorm = if ($ScopeRoot) { $ScopeRoot.TrimEnd('\', '/').ToLower() } else { '' }
+
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+    $tmpDbList = Join-Path $env:TEMP ("lrt_px_list_{0}.txt" -f $PID)
+    $tmpPy     = Join-Path $env:TEMP ("lrt_px_q_{0}.py" -f $PID)
+    $tmpOut    = Join-Path $env:TEMP ("lrt_px_o_{0}.txt" -f $PID)
+    $prevEap   = $ErrorActionPreference
+
+    try {
+        $ErrorActionPreference = 'Continue'
+        if ($pyExe) {
+            [IO.File]::WriteAllLines($tmpDbList, [string[]]$DbPaths, $utf8NoBom)
+            [string[]]$pyLines = @(
+                "import os, sqlite3, sys",
+                "dblist, outp = sys.argv[1], sys.argv[2]",
+                "rows = []",
+                "q = '''SELECT originalImagePath, MAX(CAST(COALESCE(starLevel,0) AS INTEGER)),",
+                "       MAX(CASE WHEN COALESCE(selectFlag,0)=1 OR COALESCE(isFavourite,0)=1 THEN 1 ELSE 0 END)",
+                "       FROM thumbnail",
+                "       WHERE COALESCE(inRecycleBin,0)=0 AND originalImagePath IS NOT NULL AND originalImagePath<>''",
+                "         AND (COALESCE(starLevel,0)>=1 OR COALESCE(selectFlag,0)=1 OR COALESCE(isFavourite,0)=1)",
+                "       GROUP BY originalImagePath'''",
+                "with open(dblist, 'r', encoding='utf-8') as f:",
+                "    paths = [ln.strip() for ln in f if ln.strip()]",
+                "for dbp in paths:",
+                "    try:",
+                "        uri = 'file:' + dbp.replace('\\\\', '/')",
+                "        con = sqlite3.connect(uri + '?mode=ro', uri=True, timeout=3.0)",
+                "        cur = con.cursor()",
+                "        for imgp, st, fl in cur.execute(q):",
+                "            rows.append(imgp + '|' + str(st) + '|' + str(fl))",
+                "        con.close()",
+                "    except Exception:",
+                "        pass",
+                "with open(outp, 'w', encoding='utf-8') as fh:",
+                "    fh.write('\n'.join(rows))"
+            )
+            [IO.File]::WriteAllLines($tmpPy, $pyLines, $utf8NoBom)
+            $null = (& $pyExe $tmpPy $tmpDbList $tmpOut 2>&1)
+            if (Test-Path -LiteralPath $tmpOut) {
+                $lines = [IO.File]::ReadAllLines($tmpOut, [System.Text.Encoding]::UTF8)
+                foreach ($line in $lines) {
+                    if (-not $line) { continue }
+                    $parts = $line.Split('|')
+                    if ($parts.Length -lt 3) { continue }
+                    $imgPath = $parts[0].Trim()
+                    $dirPart = [IO.Path]::GetDirectoryName($imgPath)
+                    if (-not $dirPart) { continue }
+                    try { $dirPart = [IO.Path]::GetFullPath($dirPart) } catch {}
+                    $dirLower = $dirPart.TrimEnd('\', '/').ToLower()
+                    if ($scopeNorm -and -not ($dirLower -eq $scopeNorm -or $dirLower.StartsWith($scopeNorm + '\'))) { continue }
+                    $extBare = [IO.Path]::GetExtension($imgPath).TrimStart('.').ToLower()
+                    if ($extSet -and -not $extSet.ContainsKey($extBare)) { continue }
+                    $baseLower = [IO.Path]::GetFileNameWithoutExtension($imgPath).ToLower()
+                    $st = 0; $fl = 0
+                    [void][int]::TryParse($parts[1], [ref]$st)
+                    [void][int]::TryParse($parts[2], [ref]$fl)
+                    $eff = if ($st -ge 1) { $st } elseif ($fl -eq 1) { 1 } else { 0 }
+                    if ($eff -ge 1) {
+                        $key = $dirLower + '|' + $baseLower
+                        $map[$key] = Merge-Rating $map[$key] $eff
+                    }
+                }
+            }
+        }
+    } finally {
+        $ErrorActionPreference = $prevEap
+        Remove-Item -LiteralPath $tmpDbList -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $tmpPy     -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $tmpOut    -ErrorAction SilentlyContinue
+    }
+    return $map
+}
+
+function Get-AllSoftwareRatingMap {
+    param(
+        [string]$PhotoRoot,
+        [string]$ExplicitCatalogPath,
+        [string]$PixCakeDbRoot,
+        [string[]]$ExtensionFilter,
+        [string]$ProjectRoot,
+        [string]$ScriptDir
+    )
+    $merged  = @{}
+    $labels  = New-Object System.Collections.Generic.List[string]
+    $locks   = New-Object System.Collections.Generic.List[string]
+    $details = New-Object System.Collections.Generic.List[string]
+
+    if ($ExplicitCatalogPath) {
+        if ($ExplicitCatalogPath -imatch '\.(cocatalogdb|cosessiondb)$') {
+            $m = Get-CaptureOneRatingMap -CatPath $ExplicitCatalogPath -ExtensionFilter $ExtensionFilter -ProjectRoot $ProjectRoot -ScriptDir $ScriptDir
+            foreach ($k in $m.Keys) { $merged[$k] = Merge-Rating $merged[$k] $m[$k] }
+            $lbl = "Capture One ($(Split-Path -Leaf $ExplicitCatalogPath))"
+            $labels.Add($lbl)
+            $details.Add((T 'StatusLoadedDbItem' @($lbl, $m.Count)))
+        } else {
+            if (Test-Path -LiteralPath ($ExplicitCatalogPath + '.lock')) { $locks.Add($ExplicitCatalogPath) }
+            $m = Get-CatalogRatingMap -CatPath $ExplicitCatalogPath -ExtensionFilter $ExtensionFilter -ProjectRoot $ProjectRoot -ScriptDir $ScriptDir
+            foreach ($k in $m.Keys) { $merged[$k] = Merge-Rating $merged[$k] $m[$k] }
+            $lbl = "Lightroom ($(Split-Path -Leaf $ExplicitCatalogPath))"
+            $labels.Add($lbl)
+            $details.Add((T 'StatusLoadedDbItem' @($lbl, $m.Count)))
+        }
+    } else {
+        $lrCat = Resolve-CatalogPath -ExplicitPath $null -PhotoRoot $PhotoRoot
+        if ($lrCat -and (Test-Path -LiteralPath $lrCat -PathType Leaf)) {
+            if (Test-Path -LiteralPath ($lrCat + '.lock')) { $locks.Add($lrCat) }
+            $m = Get-CatalogRatingMap -CatPath $lrCat -ExtensionFilter $ExtensionFilter -ProjectRoot $ProjectRoot -ScriptDir $ScriptDir
+            foreach ($k in $m.Keys) { $merged[$k] = Merge-Rating $merged[$k] $m[$k] }
+            $lbl = "Lightroom ($(Split-Path -Leaf $lrCat))"
+            $labels.Add($lbl)
+            $details.Add((T 'StatusLoadedDbItem' @($lbl, $m.Count)))
+        }
+
+        $c1Cats = Resolve-CaptureOneCatalogPaths -ExplicitPath $null -PhotoRoot $PhotoRoot
+        foreach ($c1 in $c1Cats) {
+            if (Test-Path -LiteralPath $c1 -PathType Leaf) {
+                $m = Get-CaptureOneRatingMap -CatPath $c1 -ExtensionFilter $ExtensionFilter -ProjectRoot $ProjectRoot -ScriptDir $ScriptDir
+                foreach ($k in $m.Keys) { $merged[$k] = Merge-Rating $merged[$k] $m[$k] }
+                $lbl = "Capture One ($(Split-Path -Leaf $c1))"
+                $labels.Add($lbl)
+                $details.Add((T 'StatusLoadedDbItem' @($lbl, $m.Count)))
+            }
+        }
+
+        $pxDbs = Resolve-PixCakeDbPaths -PixCakeDbRoot $PixCakeDbRoot
+        if ($pxDbs.Count -gt 0) {
+            $m = Get-PixCakeRatingMap -DbPaths $pxDbs -ExtensionFilter $ExtensionFilter -ScopeRoot $PhotoRoot -ProjectRoot $ProjectRoot -ScriptDir $ScriptDir
+            if ($m.Count -gt 0) {
+                foreach ($k in $m.Keys) { $merged[$k] = Merge-Rating $merged[$k] $m[$k] }
+                $lbl = "PixCake ($($pxDbs.Count) project DBs)"
+                $labels.Add($lbl)
+                $details.Add((T 'StatusLoadedDbItem' @('PixCake', $m.Count)))
+            }
+        }
+    }
+
+    return [pscustomobject]@{
+        Ratings      = $merged
+        Labels       = $labels.ToArray()
+        LockWarnings = $locks.ToArray()
+        Details      = $details.ToArray()
+    }
 }

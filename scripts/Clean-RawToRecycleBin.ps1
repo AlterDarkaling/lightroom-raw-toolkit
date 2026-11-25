@@ -14,6 +14,7 @@ param(
     [string]  $ExifToolPath,
     [string]  $CatalogPath,
     [switch]  $NoCatalog,
+    [string]  $PixCakeDbRoot,
     [switch]  $DeleteRawOnly,
     [switch]  $DryRun,
     [switch]  $NoConfirm,
@@ -68,13 +69,29 @@ if (-not $DeleteRated -and -not $exifOk) {
 }
 
 $explicitCatalog = [bool]$CatalogPath
+$detectedDbLabels = New-Object System.Collections.Generic.List[string]
 if (-not $NoCatalog) {
-    $CatalogPath = Resolve-CatalogPath -ExplicitPath $CatalogPath -PhotoRoot $RootPath
-    if ($explicitCatalog -and (-not $CatalogPath -or -not (Test-Path -LiteralPath $CatalogPath -PathType Leaf))) {
-        Write-Host (T 'ErrNoCatalog' @($CatalogPath)) -ForegroundColor Red
-        exit 1
+    if ($explicitCatalog) {
+        if (-not (Test-Path -LiteralPath $CatalogPath -PathType Leaf)) {
+            Write-Host (T 'ErrNoCatalog' @($CatalogPath)) -ForegroundColor Red
+            exit 1
+        }
+        $CatalogPath = (Resolve-Path -LiteralPath $CatalogPath).Path
+        $detectedDbLabels.Add($CatalogPath)
+    } else {
+        $lrCat = Resolve-CatalogPath -ExplicitPath $null -PhotoRoot $RootPath
+        if ($lrCat -and (Test-Path -LiteralPath $lrCat -PathType Leaf)) {
+            $CatalogPath = (Resolve-Path -LiteralPath $lrCat).Path
+            $detectedDbLabels.Add($CatalogPath)
+        }
+        foreach ($c1 in (Resolve-CaptureOneCatalogPaths -ExplicitPath $null -PhotoRoot $RootPath)) {
+            $detectedDbLabels.Add($c1)
+        }
+        $pxCount = @(Resolve-PixCakeDbPaths -PixCakeDbRoot $PixCakeDbRoot).Count
+        if ($pxCount -gt 0) {
+            $detectedDbLabels.Add("PixCake ($pxCount project DBs)")
+        }
     }
-    if ($CatalogPath) { $CatalogPath = (Resolve-Path -LiteralPath $CatalogPath).Path }
 } else {
     $CatalogPath = $null
 }
@@ -193,7 +210,7 @@ Write-Host (T 'HeaderScope'   @($(if ($UseFileDate) { T 'ScopeFileDate' } else {
 Write-Host (T 'HeaderRule'    @($rangeDesc))
 Write-Host (T 'HeaderRating'  @($(if ($DeleteRated) { T 'RatingDelete' } else { T 'RatingKeep' }))) -ForegroundColor $(if ($DeleteRated) { 'Red' } else { 'Green' })
 Write-Host (T 'HeaderRawOnly' @($(if ($DeleteRawOnly) { T 'RawOnlyDelete' } else { T 'RawOnlyKeep' }))) -ForegroundColor $(if ($DeleteRawOnly) { 'Red' } else { 'Green' })
-$catLabel = if ($DeleteRated) { T 'CatSkipped' } elseif ($CatalogPath) { $CatalogPath } elseif ($NoCatalog) { T 'CatDisabled' } else { T 'CatNotFound' }
+$catLabel = if ($DeleteRated) { T 'CatSkipped' } elseif ($detectedDbLabels.Count -gt 0) { $detectedDbLabels -join '; ' } elseif ($NoCatalog) { T 'CatDisabled' } else { T 'CatNotFound' }
 Write-Host (T 'HeaderCatalog' @($catLabel))
 Write-Host (T 'HeaderMode'    @($(if ($DryRun) { T 'ModeDryRun' } else { T 'ModeLive' }))) -ForegroundColor $(if ($DryRun) { 'Yellow' } else { 'Red' })
 Write-Host "==================================================" -ForegroundColor DarkCyan
@@ -336,20 +353,24 @@ if ($UseFileDate) {
 }
 
 # ========== DETECT STAR RATINGS ==========
-$exifMap = @{}
-$catMap  = @{}
+$exifMap      = @{}
+$catMap       = @{}
+$loadedDbCnt  = 0
 
 if (-not $DeleteRated -and $candidates.Count -gt 0) {
-    if ($CatalogPath) {
-        if (Test-Path -LiteralPath ($CatalogPath + '.lock')) {
-            Write-Host ""
-            Write-Host (T 'WarnLrRunning1') -ForegroundColor Red
-            Write-Host (T 'WarnLrRunning2') -ForegroundColor Red
-        }
+    if (-not $NoCatalog -and ($detectedDbLabels.Count -gt 0)) {
         Write-Host (T 'StatusReadingCatalog') -ForegroundColor DarkGray
         try {
-            $catMap = Get-CatalogRatingMap -CatPath $CatalogPath -ProjectRoot $projectRoot -ScriptDir $scriptDir
+            $dbRes = Get-AllSoftwareRatingMap -PhotoRoot $RootPath -ExplicitCatalogPath $(if ($explicitCatalog) { $CatalogPath } else { $null }) -PixCakeDbRoot $PixCakeDbRoot -ProjectRoot $projectRoot -ScriptDir $scriptDir
+            if ($dbRes.LockWarnings.Count -gt 0) {
+                Write-Host ""
+                Write-Host (T 'WarnLrRunning1') -ForegroundColor Red
+                Write-Host (T 'WarnLrRunning2') -ForegroundColor Red
+            }
+            $catMap = $dbRes.Ratings
+            $loadedDbCnt = $dbRes.Labels.Count
             Write-Host (T 'StatusLoadedCatalog' @($catMap.Count)) -ForegroundColor DarkGray
+            foreach ($dt in $dbRes.Details) { Write-Host $dt -ForegroundColor DarkGray }
         } catch {
             Write-Host ("[ERROR] {0}" -f $_.Exception.Message) -ForegroundColor Red
             Write-Host (T 'ErrCatalogAbort') -ForegroundColor Red
@@ -492,7 +513,7 @@ if ($targets.Count -gt 10) {
     Write-Host (T 'PreviewSampleMore' @($targets.Count - 10)) -ForegroundColor DarkGray
 }
 
-if (-not $DeleteRated -and -not $CatalogPath -and $noXmpZeroRatedGroups.Count -gt 0) {
+if (-not $DeleteRated -and ($loadedDbCnt -eq 0) -and $noXmpZeroRatedGroups.Count -gt 0) {
     Write-Host ""
     Write-Host (T 'WarnNoXmp1' @($noXmpZeroRatedGroups.Count)) -ForegroundColor Red
     Write-Host (T 'WarnNoXmp2') -ForegroundColor Red
