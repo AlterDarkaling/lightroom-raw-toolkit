@@ -21,10 +21,10 @@ A safe, **Recycle-Bin-first** Windows tool for photographers who shoot **RAW + J
 
 ## Quick Start
 
-**Requirements**: Windows 10 / 11, [ExifTool for Windows](https://exiftool.org/), and Python 3 (or `sqlite3.exe` in `tools\`) for reading Lightroom catalogs.
+**Requirements**: Windows 10 / 11 (ExifTool can be **auto-installed** on first launch; Python 3 or `sqlite3.exe` is used if reading Lightroom catalogs).
 
-1. Download [ExifTool for Windows](https://exiftool.org/), rename `exiftool(-k).exe` to `exiftool.exe`, and place `exiftool.exe` + `exiftool_files\` inside `tools\`.
-2. Double-click **`Start-Toolkit.bat`** (or drag and drop any photo folder onto it).
+1. Double-click **`Start-Toolkit.bat`** (or drag and drop any photo folder onto it).
+2. If ExifTool is not installed yet, press Enter or `Y` when asked — the toolkit automatically downloads and configures it into `tools\` (or run `winget install OliverBetz.ExifTool` / place `exiftool.exe` in `tools\` manually).
 3. Follow the menu (`[1]` Clean RAW, `[2]` Restore JPG stars, `[3]` Rollback backup, `[4]` Switch folder, `[L]` Switch English / 中文). Your last folder and language are remembered automatically.
 
 ## Supported RAW Formats

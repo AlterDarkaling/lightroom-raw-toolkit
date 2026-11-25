@@ -21,10 +21,10 @@
 
 ## 快速上手
 
-**准备环境**：Windows 10 / 11、下载 [ExifTool (Windows 版)](https://exiftool.org/)，以及 Python 3（或 `sqlite3.exe` 放在 `tools\`）用于读取 Lightroom 目录。
+**准备环境**：Windows 10 / 11（首次启动可**自动安装 ExifTool**；读取 Lightroom 目录需要 Python 3 或 `sqlite3.exe`）。
 
-1. 从 [ExifTool 官网](https://exiftool.org/) 下载后，将 `exiftool(-k).exe` 重命名为 `exiftool.exe`，连同 `exiftool_files\` 一起放进工具箱的 `tools\` 文件夹。
-2. 双击根目录下的 **`Start-Toolkit.bat`**（或直接把照片文件夹拖到 `Start-Toolkit.bat` 图标上）。
+1. 双击根目录下的 **`Start-Toolkit.bat`**（或直接把照片文件夹拖到 `Start-Toolkit.bat` 图标上）。
+2. 如果还没装 ExifTool，启动时会主动询问，直接按回车或 `Y` 即可自动从官网下载并配置进 `tools\`（也可在终端运行 `winget install OliverBetz.ExifTool`，或手动下载放入 `tools\`）。
 3. 按菜单选择即可：`[1]` 清理 RAW、`[2]` 恢复 JPG 星标、`[3]` 一键回滚备份、`[4]` 切换照片文件夹、`[L]` 切换中英文。工具会自动记住你上次使用的文件夹和语言。
 
 ## 支持的 RAW 格式

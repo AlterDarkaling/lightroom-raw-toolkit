@@ -13,9 +13,10 @@ $ErrorActionPreference = 'Stop'
 $testDir     = if ($PSScriptRoot) { $PSScriptRoot } else { (Get-Location).Path }
 $projectRoot = [IO.Path]::GetDirectoryName($testDir.TrimEnd('\', '/'))
 $libPath     = Join-Path $projectRoot 'lib\PhotoMetaCommon.ps1'
-$cleanScript    = Join-Path $projectRoot 'scripts\Clean-RawToRecycleBin.ps1'
-$restScript     = Join-Path $projectRoot 'scripts\Restore-RatingToJpg.ps1'
-$rollbackScript = Join-Path $projectRoot 'scripts\Rollback-JpgBackup.ps1'
+$cleanScript     = Join-Path $projectRoot 'scripts\Clean-RawToRecycleBin.ps1'
+$restScript      = Join-Path $projectRoot 'scripts\Restore-RatingToJpg.ps1'
+$rollbackScript  = Join-Path $projectRoot 'scripts\Rollback-JpgBackup.ps1'
+$installEtScript = Join-Path $projectRoot 'scripts\Install-ExifTool.ps1'
 
 . $libPath
 
@@ -94,6 +95,7 @@ $ps1Files = @(
     $cleanScript,
     $restScript,
     $rollbackScript,
+    $installEtScript,
     (Join-Path $projectRoot 'scripts\Start-Toolkit.ps1'),
     (Join-Path $testDir 'Run-Tests.ps1')
 )
@@ -174,6 +176,20 @@ try {
     Save-ToolkitLocalConfig -ProjectRoot $cfgDir -LastRoot $photoDir -Lang 'zh'
     $loadedCfg = Get-ToolkitLocalConfig -ProjectRoot $cfgDir
     Assert-True ($null -ne $loadedCfg -and $loadedCfg.LastRoot -eq $photoDir -and $loadedCfg.Lang -eq 'zh') 'Save/Get-ToolkitLocalConfig round-trips LastRoot and Lang'
+
+    # Unit: Install-ExifTool.ps1 offline ZIP extraction & rename
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $etSrcParent = Join-Path $tmpBase 'et_zip_src'
+    $etInnerDir  = Join-Path $etSrcParent 'exiftool-13.99_64'
+    $etFilesDir  = Join-Path $etInnerDir 'exiftool_files'
+    New-Item -ItemType Directory -Path $etFilesDir -Force | Out-Null
+    [IO.File]::WriteAllText((Join-Path $etInnerDir 'exiftool(-k).exe'), 'dummy-exe')
+    [IO.File]::WriteAllText((Join-Path $etFilesDir 'dummy.txt'), 'dummy-lib')
+    $testEtZip = Join-Path $tmpBase 'test_exiftool.zip'
+    [System.IO.Compression.ZipFile]::CreateFromDirectory($etSrcParent, $testEtZip)
+    $etTarget = Join-Path $tmpBase 'et_target'
+    $instOut = (& $installEtScript -ZipPath $testEtZip -TargetDir $etTarget -SkipVerify -Lang zh 6>&1 | Out-String)
+    Assert-True ($LASTEXITCODE -eq 0 -and (Test-Path -LiteralPath (Join-Path $etTarget 'exiftool.exe') -PathType Leaf) -and (Test-Path -LiteralPath (Join-Path $etTarget 'exiftool_files\dummy.txt') -PathType Leaf) -and ($instOut -notmatch '\{0\}')) 'Install-ExifTool extracts, renames exiftool(-k).exe, and copies exiftool_files'
 
     Write-Host "`n=== 3. End-to-End Cleanup LIVE Test (Multi-RAW + ACR + JPG-XMP + LR) ===" -ForegroundColor Cyan
     $e2eRoot = Join-Path $tmpBase 'e2e'

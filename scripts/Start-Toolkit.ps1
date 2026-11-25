@@ -48,10 +48,23 @@ if ($RootPath) {
     }
 }
 
-$cleanScript    = Join-Path $projectRoot 'scripts\Clean-RawToRecycleBin.ps1'
-$restoreScript  = Join-Path $projectRoot 'scripts\Restore-RatingToJpg.ps1'
-$rollbackScript = Join-Path $projectRoot 'scripts\Rollback-JpgBackup.ps1'
-$autoIdx        = 0
+$cleanScript     = Join-Path $projectRoot 'scripts\Clean-RawToRecycleBin.ps1'
+$restoreScript   = Join-Path $projectRoot 'scripts\Restore-RatingToJpg.ps1'
+$rollbackScript  = Join-Path $projectRoot 'scripts\Rollback-JpgBackup.ps1'
+$installEtScript = Join-Path $projectRoot 'scripts\Install-ExifTool.ps1'
+$autoIdx         = 0
+
+if (-not ($AutoChoices -and $AutoChoices.Count -gt 0)) {
+    $initEt = Resolve-ExifToolPath -ExplicitPath $ExifToolPath -ProjectRoot $projectRoot -ScriptDir $scriptDir
+    if (-not ($initEt -and (Test-Path -LiteralPath $initEt -PathType Leaf))) {
+        Write-Host ""
+        Write-Host (T 'MenuEtMissingStartup') -ForegroundColor Yellow
+        $instAns = Read-Host (T 'MenuEtAutoInstallPrompt')
+        if ($null -ne $instAns -and ($instAns.Trim() -eq '' -or ($instAns.Trim() -in @('Y', 'y')))) {
+            & $installEtScript -Lang $currentLang
+        }
+    }
+}
 
 while ($true) {
     Set-UiLang $currentLang
@@ -88,6 +101,9 @@ while ($true) {
     Write-Host (T 'MenuOptRestore')    -ForegroundColor White
     Write-Host (T 'MenuOptRollback')   -ForegroundColor White
     Write-Host (T 'MenuOptSwitchRoot') -ForegroundColor Yellow
+    if (-not $etReady) {
+        Write-Host (T 'MenuOptInstallEt') -ForegroundColor Green
+    }
     Write-Host (T 'MenuOptSwitchLang') -ForegroundColor Yellow
     Write-Host (T 'MenuOptExit')       -ForegroundColor DarkGray
     Write-Host "==============================================" -ForegroundColor Cyan
@@ -147,6 +163,9 @@ while ($true) {
         $null = Read-Host (T 'MenuPressEnter')
     } elseif ($choice -eq '3') {
         & $rollbackScript -Lang $currentLang
+        $null = Read-Host (T 'MenuPressEnter')
+    } elseif ($choice -ieq 'I') {
+        & $installEtScript -Lang $currentLang
         $null = Read-Host (T 'MenuPressEnter')
     } else {
         Write-Host (T 'MenuInvalidOpt' @($choice)) -ForegroundColor Yellow
