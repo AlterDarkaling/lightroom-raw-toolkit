@@ -1,0 +1,22 @@
+# Runtime logs, backups & local config
+logs/
+backups/
+config.local.json
+*.log
+
+# Third-party binaries (users place them locally in tools/)
+tools/exiftool.exe
+tools/exiftool_files/
+tools/sqlite3.exe
+
+# Lightroom catalogs & backups
+*.lrcat
+*.lrcat-wal
+*.lrcat-shm
+*.lrcat.lock
+*.jpg_original
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+desktop.ini
