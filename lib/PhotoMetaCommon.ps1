@@ -202,7 +202,7 @@ $script:LrtMessages = @{
         MenuEnvDbFound        = ' Databases   : {0}'
         MenuEnvNoSqlite       = ' [WARN] Neither sqlite3.exe nor Python 3 found; catalog DB reading unavailable.'
         MenuOptClean          = '  [1] Clean unrated RAW files (move to Recycle Bin)'
-        MenuOptRestore        = '  [2] Sync star ratings to JPG (LR / Capture One / PixCake / XMP)'
+        MenuOptRestore        = '  [2] Sync star ratings to JPG (LR / C1 / PixCake / PixPretty / XMP)'
         MenuOptRollback       = '  [3] Rollback JPG backups (restore exact original JPGs)'
         MenuOptSwitchRoot     = '  [4] Switch target photo folder'
         MenuOptInstallEt      = '  [I] Auto-download & install ExifTool into tools\'
@@ -419,7 +419,7 @@ $script:LrtMessages = @{
         MenuEnvDbFound        = ' 已识别图库  : {0}'
         MenuEnvNoSqlite       = ' [提示] 未检测到 sqlite3.exe 或 Python 3，暂时无法读取桌面软件数据库。'
         MenuOptClean          = '  [1] 清理无星标 RAW 文件（移至回收站）'
-        MenuOptRestore        = '  [2] 将星标同步写入 JPG（LR / Capture One / 像素蛋糕 / RAW·XMP）'
+        MenuOptRestore        = '  [2] 将星标同步写入 JPG（LR / C1 / 像素蛋糕 / 影像之匠 / XMP）'
         MenuOptRollback       = '  [3] 从 backups\ 一键回滚 JPG 原图备份'
         MenuOptSwitchRoot     = '  [4] 切换目标照片文件夹'
         MenuOptInstallEt      = '  [I] 一键自动下载并配置 ExifTool 到 tools\'
@@ -685,17 +685,106 @@ function Resolve-CaptureOneCatalogPaths([string]$ExplicitPath, [string]$PhotoRoo
 
 function Resolve-PixCakeDbPaths([string]$PixCakeDbRoot) {
     if ($PixCakeDbRoot -ieq 'NONE') { return @() }
-    $root = $PixCakeDbRoot
-    if (-not $root) {
+    $roots = New-Object System.Collections.Generic.List[string]
+    if ($PixCakeDbRoot) {
+        $roots.Add($PixCakeDbRoot)
+    } else {
         $appData = [Environment]::GetFolderPath('ApplicationData')
-        if (-not $appData) { return @() }
-        $root = Join-Path $appData 'PixCake-qt_pro\db'
+        if ($appData) {
+            foreach ($sub in @('PixCake-qt_pro\db', 'PixCake-qt\db', 'PixCake\db')) {
+                $roots.Add((Join-Path $appData $sub))
+            }
+        }
+        $localApp = [Environment]::GetFolderPath('LocalApplicationData')
+        if ($localApp) {
+            $roots.Add((Join-Path $localApp 'PixCake-qt_pro\db'))
+        }
     }
-    if (-not (Test-Path -LiteralPath $root -PathType Container)) { return @() }
-    $dbs = @(Get-ChildItem -LiteralPath $root -Filter 'project.db' -Recurse -File -ErrorAction SilentlyContinue |
-        Sort-Object LastWriteTime -Descending |
-        ForEach-Object { $_.FullName })
+    $found = New-Object System.Collections.Generic.List[object]
+    $seen  = @{}
+    foreach ($r in $roots) {
+        if (-not $r -or -not (Test-Path -LiteralPath $r -PathType Container)) { continue }
+        foreach ($f in (Get-ChildItem -LiteralPath $r -Filter 'project.db' -Recurse -File -ErrorAction SilentlyContinue)) {
+            $k = $f.FullName.ToLower()
+            if (-not $seen.ContainsKey($k)) {
+                $seen[$k] = $true
+                $found.Add($f)
+            }
+        }
+    }
+    $dbs = @($found | Sort-Object LastWriteTime -Descending | ForEach-Object { $_.FullName })
     return $dbs
+}
+
+function Resolve-PixPrettyDbPaths([string]$PixPrettyDbRoot) {
+    if ($PixPrettyDbRoot -ieq 'NONE') { return @() }
+    $roots = New-Object System.Collections.Generic.List[string]
+    if ($PixPrettyDbRoot) {
+        $roots.Add($PixPrettyDbRoot)
+    } else {
+        $localApp = [Environment]::GetFolderPath('LocalApplicationData')
+        if ($localApp) { $roots.Add((Join-Path $localApp 'YanYu Software\PixPretty\config')) }
+        $appData = [Environment]::GetFolderPath('ApplicationData')
+        if ($appData) { $roots.Add((Join-Path $appData 'YanYu Software\PixPretty\config')) }
+    }
+    $found = New-Object System.Collections.Generic.List[object]
+    $seen  = @{}
+    foreach ($r in $roots) {
+        if (-not $r -or -not (Test-Path -LiteralPath $r -PathType Container)) { continue }
+        foreach ($f in (Get-ChildItem -LiteralPath $r -Filter 'projects*.db' -Recurse -File -ErrorAction SilentlyContinue | Where-Object {
+            ($_.Name -inotmatch '(-wal|-shm|backup)') -and ($_.DirectoryName -inotmatch 'backup')
+        })) {
+            $k = $f.FullName.ToLower()
+            if (-not $seen.ContainsKey($k)) {
+                $seen[$k] = $true
+                $found.Add($f)
+            }
+        }
+    }
+    $dbs = @($found | Sort-Object LastWriteTime -Descending | ForEach-Object { $_.FullName })
+    return $dbs
+}
+
+function Resolve-LuminarCatalogPaths([string]$ExplicitPath, [string]$PhotoRoot) {
+    if ($ExplicitPath) {
+        if ($ExplicitPath -imatch '\.luminarneo$') { return @($ExplicitPath) }
+        return @()
+    }
+    $searchDirs = New-Object System.Collections.Generic.List[string]
+    if ($PhotoRoot -and (Test-Path -LiteralPath $PhotoRoot -PathType Container)) {
+        $searchDirs.Add($PhotoRoot)
+        $parent = [IO.Path]::GetDirectoryName($PhotoRoot.TrimEnd('\', '/'))
+        if ($parent -and (Test-Path -LiteralPath $parent -PathType Container)) {
+            $searchDirs.Add($parent)
+            foreach ($d in (Get-ChildItem -LiteralPath $parent -Directory -Filter 'Luminar Neo*' -ErrorAction SilentlyContinue)) {
+                $searchDirs.Add($d.FullName)
+            }
+        }
+    }
+    foreach ($special in @([Environment]::GetFolderPath('MyDocuments'), [Environment]::GetFolderPath('MyPictures'))) {
+        if ($special -and (Test-Path -LiteralPath $special -PathType Container)) {
+            foreach ($d in (Get-ChildItem -LiteralPath $special -Directory -Filter 'Luminar Neo*' -ErrorAction SilentlyContinue)) {
+                $searchDirs.Add($d.FullName)
+            }
+        }
+    }
+    $found = New-Object System.Collections.Generic.List[object]
+    $seen  = @{}
+    foreach ($sd in $searchDirs) {
+        if (-not $sd -or -not (Test-Path -LiteralPath $sd -PathType Container)) { continue }
+        $items = @(Get-ChildItem -LiteralPath $sd -Depth 2 -File -Filter '*.luminarneo' -ErrorAction SilentlyContinue | Where-Object {
+            ($_.Name -inotmatch '(Backup|Cache)') -and ($_.DirectoryName -inotmatch '(Backup|Cache)')
+        })
+        foreach ($it in $items) {
+            $k = $it.FullName.ToLower()
+            if (-not $seen.ContainsKey($k)) {
+                $seen[$k] = $true
+                $found.Add($it)
+            }
+        }
+    }
+    $sorted = @($found | Sort-Object LastWriteTime -Descending | Select-Object -First 5 | ForEach-Object { $_.FullName })
+    return $sorted
 }
 
 function Test-SidecarBelongsToRaw([string]$XmpPath, [string]$RawPath, [hashtable]$FolderFilesLower) {
@@ -830,7 +919,7 @@ function Get-ExifToolRatingFromObject($Obj) {
     $best = 0
     foreach ($prop in $Obj.PSObject.Properties) {
         $pname = $prop.Name
-        if ($pname -notmatch '(^|:)(Rating|StarRating|RatingPercent|Pick)$') { continue }
+        if ($pname -notmatch '(^|:)(Rating|StarRating|RatingPercent|Pick|PickLabel)$') { continue }
         $vals = if ($prop.Value -is [System.Array]) { $prop.Value } else { @($prop.Value) }
         foreach ($v in $vals) {
             if ($null -eq $v) { continue }
@@ -838,6 +927,9 @@ function Get-ExifToolRatingFromObject($Obj) {
             if ([int]::TryParse("$v", [ref]$iv)) {
                 if ($pname -imatch '(^|:)Pick$') {
                     if ($iv -eq 1 -and $best -lt 1) { $best = 1 }
+                } elseif ($pname -imatch '(^|:)PickLabel$') {
+                    # digiKam / darktable: 3 = Accepted/Picked (1 = Rejected, 2 = Pending, 0 = None)
+                    if ($iv -eq 3 -and $best -lt 1) { $best = 1 }
                 } elseif ($pname -imatch '(^|:)RatingPercent$') {
                     $mapped = if ($iv -ge 88) { 5 } elseif ($iv -ge 63) { 4 } elseif ($iv -ge 38) { 3 } elseif ($iv -ge 13) { 2 } elseif ($iv -ge 1) { 1 } else { 0 }
                     if ($mapped -gt $best) { $best = $mapped }
@@ -867,7 +959,7 @@ function Get-FileRatingMap {
         try {
             $ErrorActionPreference = 'Continue'
             [IO.File]::WriteAllLines($argFile, $slice, $utf8NoBom)
-            $json = (& $ExifTool -fast -q -charset filename=UTF8 -json -a -G1 -FileType -Rating -RatingPercent -StarRating -Pick -@ $argFile 2>$null) | Out-String
+            $json = (& $ExifTool -fast -q -charset filename=UTF8 -json -a -G1 -FileType -Rating -RatingPercent -StarRating -Pick -PickLabel -@ $argFile 2>$null) | Out-String
             if ($LASTEXITCODE -le 1 -and $json) {
                 $parsed = $json | ConvertFrom-Json
                 if ($parsed -isnot [System.Array]) { $parsed = @($parsed) }
@@ -926,7 +1018,7 @@ function Get-RawRatingMap {
         try {
             $ErrorActionPreference = 'Continue'
             [IO.File]::WriteAllLines($argFile, $slice, $utf8NoBom)
-            $json = (& $ExifTool -fast -q -charset filename=UTF8 -json -a -G1 -FileType -Rating -RatingPercent -StarRating -Pick -@ $argFile 2>$null) | Out-String
+            $json = (& $ExifTool -fast -q -charset filename=UTF8 -json -a -G1 -FileType -Rating -RatingPercent -StarRating -Pick -PickLabel -@ $argFile 2>$null) | Out-String
             if ($LASTEXITCODE -le 1 -and $json) {
                 $parsed = $json | ConvertFrom-Json
                 if ($parsed -isnot [System.Array]) { $parsed = @($parsed) }
@@ -1303,7 +1395,7 @@ function Get-PixCakeRatingMap {
                 "    paths = [ln.strip() for ln in f if ln.strip()]",
                 "for dbp in paths:",
                 "    try:",
-                "        uri = 'file:' + dbp.replace('\\\\', '/')",
+                "        uri = 'file:' + dbp.replace('\\', '/')",
                 "        con = sqlite3.connect(uri + '?mode=ro', uri=True, timeout=3.0)",
                 "        cur = con.cursor()",
                 "        for imgp, st, fl in cur.execute(q):",
@@ -1351,11 +1443,257 @@ function Get-PixCakeRatingMap {
     return $map
 }
 
+function Get-PixPrettyRatingMap {
+    param(
+        [string[]]$DbPaths,
+        [string[]]$ExtensionFilter,
+        [string]$ScopeRoot,
+        [string]$ProjectRoot,
+        [string]$ScriptDir
+    )
+    $map = @{}
+    if (-not $DbPaths -or $DbPaths.Count -eq 0) { return $map }
+
+    $pyExe = Resolve-PythonCliPath
+    if (-not $pyExe) { return $map }
+
+    $extSet = $null
+    if ($ExtensionFilter -and $ExtensionFilter.Count -gt 0) {
+        $extSet = @{}
+        foreach ($e in $ExtensionFilter) { $extSet[$e.TrimStart('.').ToLower()] = $true }
+    }
+    $scopeNorm = if ($ScopeRoot) { $ScopeRoot.TrimEnd('\', '/').ToLower() } else { '' }
+
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+    $tmpDbList = Join-Path $env:TEMP ("lrt_pp_list_{0}.txt" -f $PID)
+    $tmpPy     = Join-Path $env:TEMP ("lrt_pp_q_{0}.py" -f $PID)
+    $tmpOut    = Join-Path $env:TEMP ("lrt_pp_o_{0}.txt" -f $PID)
+    $prevEap   = $ErrorActionPreference
+
+    try {
+        $ErrorActionPreference = 'Continue'
+        [IO.File]::WriteAllLines($tmpDbList, [string[]]$DbPaths, $utf8NoBom)
+        [string[]]$pyLines = @(
+            "import ctypes, os, re, sqlite3, string, sys",
+            "dblist, outp = sys.argv[1], sys.argv[2]",
+            "guid_to_drive = {}",
+            "try:",
+            "    k32 = ctypes.windll.kernel32",
+            "    mask = k32.GetLogicalDrives()",
+            "    buf = ctypes.create_unicode_buffer(128)",
+            "    for idx, ch in enumerate(string.ascii_uppercase):",
+            "        if not (mask & (1 << idx)): continue",
+            "        rt = ch + ':\\'",
+            "        if k32.GetDriveTypeW(rt) in (2, 3):",
+            "            if k32.GetVolumeNameForVolumeMountPointW(rt, buf, 128):",
+            "                guid_to_drive[buf.value.rstrip('\\/').lower()] = rt",
+            "except Exception:",
+            "    pass",
+            "q = '''SELECT COALESCE(i.root_path_id,''), COALESCE(i.relative_path,''), COALESCE(i.name,''),",
+            "       MAX(CAST(COALESCE(i.level,0) AS INTEGER)),",
+            "       MAX(CASE WHEN CAST(COALESCE(i.flag_mark,0) AS INTEGER)=1 THEN 1 ELSE 0 END)",
+            "       FROM images i",
+            "       LEFT JOIN projects p ON i.project_id = p.project_id",
+            "       WHERE COALESCE(i.is_del,0)=0 AND COALESCE(p.del_states,0)=0",
+            "         AND (COALESCE(i.level,0)>=1 OR COALESCE(i.flag_mark,0)=1)",
+            "       GROUP BY i.root_path_id, i.relative_path, i.name'''",
+            "rows = []",
+            "with open(dblist, 'r', encoding='utf-8') as f:",
+            "    paths = [ln.strip() for ln in f if ln.strip()]",
+            "for dbp in paths:",
+            "    try:",
+            "        uri = 'file:' + dbp.replace('\\', '/')",
+            "        con = sqlite3.connect(uri + '?mode=ro', uri=True, timeout=3.0)",
+            "        cur = con.cursor()",
+            "        for rid, relp, fn, lv, fl in cur.execute(q):",
+            "            rkey = rid.strip().rstrip('\\/').lower()",
+            "            rel_clean = relp.strip().replace('/', '\\')",
+            "            fullp = ''",
+            "            if rkey in guid_to_drive:",
+            "                drv = guid_to_drive[rkey]",
+            "                fullp = os.path.normpath(os.path.join(drv, rel_clean.lstrip('\\/')))",
+            "            elif re.match(r'^[a-zA-Z]:([\\/]|$)', rid.strip()):",
+            "                drv = rid.strip()[:2] + '\\'",
+            "                fullp = os.path.normpath(os.path.join(drv, rel_clean.lstrip('\\/')))",
+            "            elif re.match(r'^[a-zA-Z]:[\\/]', rel_clean):",
+            "                fullp = os.path.normpath(rel_clean)",
+            "            if not fullp: continue",
+            "            if fn and os.path.basename(fullp).lower() != fn.strip().lower():",
+            "                fullp = os.path.join(fullp, fn.strip())",
+            "            rows.append(fullp + '|' + str(lv) + '|' + str(fl))",
+            "        con.close()",
+            "    except Exception:",
+            "        pass",
+            "with open(outp, 'w', encoding='utf-8') as fh:",
+            "    fh.write('\n'.join(rows))"
+        )
+        [IO.File]::WriteAllLines($tmpPy, $pyLines, $utf8NoBom)
+        $null = (& $pyExe $tmpPy $tmpDbList $tmpOut 2>&1)
+        if (Test-Path -LiteralPath $tmpOut) {
+            $lines = [IO.File]::ReadAllLines($tmpOut, [System.Text.Encoding]::UTF8)
+            foreach ($line in $lines) {
+                if (-not $line) { continue }
+                $parts = $line.Split('|')
+                if ($parts.Length -lt 3) { continue }
+                $imgPath = $parts[0].Trim()
+                $dirPart = [IO.Path]::GetDirectoryName($imgPath)
+                if (-not $dirPart) { continue }
+                try { $dirPart = [IO.Path]::GetFullPath($dirPart) } catch {}
+                $dirLower = $dirPart.TrimEnd('\', '/').ToLower()
+                if ($scopeNorm -and -not ($dirLower -eq $scopeNorm -or $dirLower.StartsWith($scopeNorm + '\'))) { continue }
+                $extBare = [IO.Path]::GetExtension($imgPath).TrimStart('.').ToLower()
+                if ($extSet -and -not $extSet.ContainsKey($extBare)) { continue }
+                $baseLower = [IO.Path]::GetFileNameWithoutExtension($imgPath).ToLower()
+                $lv = 0; $fl = 0
+                [void][int]::TryParse($parts[1], [ref]$lv)
+                [void][int]::TryParse($parts[2], [ref]$fl)
+                $eff = if ($lv -ge 1) { $lv } elseif ($fl -eq 1) { 1 } else { 0 }
+                if ($eff -ge 1) {
+                    $key = $dirLower + '|' + $baseLower
+                    $map[$key] = Merge-Rating $map[$key] $eff
+                }
+            }
+        }
+    } finally {
+        $ErrorActionPreference = $prevEap
+        Remove-Item -LiteralPath $tmpDbList -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $tmpPy     -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $tmpOut    -ErrorAction SilentlyContinue
+    }
+    return $map
+}
+
+function Get-LuminarNeoRatingMap {
+    param(
+        [string]$CatPath,
+        [string[]]$ExtensionFilter,
+        [string]$ScopeRoot,
+        [string]$ProjectRoot,
+        [string]$ScriptDir
+    )
+    $map = @{}
+    if (-not $CatPath -or -not (Test-Path -LiteralPath $CatPath -PathType Leaf)) { return $map }
+
+    $pyExe = Resolve-PythonCliPath
+    if (-not $pyExe) { return $map }
+
+    $extSet = $null
+    if ($ExtensionFilter -and $ExtensionFilter.Count -gt 0) {
+        $extSet = @{}
+        foreach ($e in $ExtensionFilter) { $extSet[$e.TrimStart('.').ToLower()] = $true }
+    }
+    $scopeNorm = if ($ScopeRoot) { $ScopeRoot.TrimEnd('\', '/').ToLower() } else { '' }
+
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+    $tmpPy     = Join-Path $env:TEMP ("lrt_lum_q_{0}.py" -f $PID)
+    $tmpOut    = Join-Path $env:TEMP ("lrt_lum_o_{0}.txt" -f $PID)
+    $prevEap   = $ErrorActionPreference
+
+    try {
+        $ErrorActionPreference = 'Continue'
+        [string[]]$pyLines = @(
+            "import ctypes, json, os, re, sqlite3, string, sys",
+            "cat, outp = sys.argv[1], sys.argv[2]",
+            "serial_to_drive = {}",
+            "try:",
+            "    k32 = ctypes.windll.kernel32",
+            "    mask = k32.GetLogicalDrives()",
+            "    for idx, ch in enumerate(string.ascii_uppercase):",
+            "        if not (mask & (1 << idx)): continue",
+            "        rt = ch + ':\\'",
+            "        if k32.GetDriveTypeW(rt) in (2, 3):",
+            "            ser = ctypes.c_ulong(0)",
+            "            if k32.GetVolumeInformationW(rt, None, 0, ctypes.byref(ser), None, None, None, 0):",
+            "                serial_to_drive[f'{ser.value:08X}'] = rt",
+            "except Exception:",
+            "    pass",
+            "q = '''SELECT COALESCE(v.info_wide_ch,''), COALESCE(v.guid_wide_ch,''),",
+            "       COALESCE(p.path_wide_ch,''), i.path_wide_ch,",
+            "       MAX(CAST(COALESCE(u.rating,0) AS INTEGER)),",
+            "       MAX(CASE WHEN CAST(COALESCE(u.marker,0) AS INTEGER)=1 THEN 1 ELSE 0 END)",
+            "       FROM image_user_attributes u",
+            "       JOIN images i ON u._out_id_int_64 = i._id_int_64",
+            "       JOIN paths_images pi ON pi._val_id_int_64 = i._id_int_64",
+            "       JOIN paths p ON pi._key_id_int_64 = p._id_int_64",
+            "       LEFT JOIN volumes v ON p.volume_id_int_64 = v._id_int_64",
+            "       WHERE COALESCE(u.marked_to_delete_bool,0)=0 AND COALESCE(u.trash_bool,0)=0",
+            "         AND COALESCE(i.marked_to_delete_bool,0)=0",
+            "         AND (COALESCE(u.rating,0)>=1 OR COALESCE(u.marker,0)=1)",
+            "       GROUP BY v._id_int_64, p._id_int_64, LOWER(i.path_wide_ch)'''",
+            "rows = []",
+            "try:",
+            "    uri = 'file:' + cat.replace('\\', '/')",
+            "    con = sqlite3.connect(uri + '?mode=ro', uri=True, timeout=3.0)",
+            "    cur = con.cursor()",
+            "    for vinfo, vguid, ppath, fn, rt, mk in cur.execute(q):",
+            "        drv = ''",
+            "        if vinfo:",
+            "            s_up = vinfo.strip()",
+            "            if s_up.startswith('{'):",
+            "                try:",
+            "                    vsn = str(json.loads(s_up).get('VolumeSerialNumber', '')).strip().upper()",
+            "                    if vsn in serial_to_drive: drv = serial_to_drive[vsn]",
+            "                except Exception:",
+            "                    pass",
+            "            elif re.match(r'^[a-zA-Z]:([\\/]|$)', s_up):",
+            "                drv = s_up[:2] + '\\'",
+            "        if not drv and vguid and re.match(r'^[a-zA-Z]:([\\/]|$)', vguid.strip()):",
+            "            drv = vguid.strip()[:2] + '\\'",
+            "        pclean = ppath.strip().replace('/', '\\')",
+            "        if drv:",
+            "            full_dir = os.path.normpath(os.path.join(drv, pclean.lstrip('\\/')))",
+            "        elif re.match(r'^[a-zA-Z]:[\\/]', pclean):",
+            "            full_dir = os.path.normpath(pclean)",
+            "        else:",
+            "            continue",
+            "        rows.append(full_dir + '|' + fn.strip() + '|' + str(rt) + '|' + str(mk))",
+            "    con.close()",
+            "except Exception:",
+            "    pass",
+            "with open(outp, 'w', encoding='utf-8') as fh:",
+            "    fh.write('\n'.join(rows))"
+        )
+        [IO.File]::WriteAllLines($tmpPy, $pyLines, $utf8NoBom)
+        $null = (& $pyExe $tmpPy $CatPath $tmpOut 2>&1)
+        if (Test-Path -LiteralPath $tmpOut) {
+            $lines = [IO.File]::ReadAllLines($tmpOut, [System.Text.Encoding]::UTF8)
+            foreach ($line in $lines) {
+                if (-not $line) { continue }
+                $parts = $line.Split('|')
+                if ($parts.Length -lt 4) { continue }
+                $dirPart = $parts[0].Trim()
+                $fnPart  = $parts[1].Trim()
+                if (-not $dirPart -or -not $fnPart) { continue }
+                try { $dirPart = [IO.Path]::GetFullPath($dirPart) } catch {}
+                $dirLower = $dirPart.TrimEnd('\', '/').ToLower()
+                if ($scopeNorm -and -not ($dirLower -eq $scopeNorm -or $dirLower.StartsWith($scopeNorm + '\'))) { continue }
+                $extBare = [IO.Path]::GetExtension($fnPart).TrimStart('.').ToLower()
+                if ($extSet -and -not $extSet.ContainsKey($extBare)) { continue }
+                $baseLower = [IO.Path]::GetFileNameWithoutExtension($fnPart).ToLower()
+                $rt = 0; $mk = 0
+                [void][int]::TryParse($parts[2], [ref]$rt)
+                [void][int]::TryParse($parts[3], [ref]$mk)
+                $eff = if ($rt -ge 1) { $rt } elseif ($mk -eq 1) { 1 } else { 0 }
+                if ($eff -ge 1) {
+                    $key = $dirLower + '|' + $baseLower
+                    $map[$key] = Merge-Rating $map[$key] $eff
+                }
+            }
+        }
+    } finally {
+        $ErrorActionPreference = $prevEap
+        Remove-Item -LiteralPath $tmpPy  -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $tmpOut -ErrorAction SilentlyContinue
+    }
+    return $map
+}
+
 function Get-AllSoftwareRatingMap {
     param(
         [string]$PhotoRoot,
         [string]$ExplicitCatalogPath,
         [string]$PixCakeDbRoot,
+        [string]$PixPrettyDbRoot,
         [string[]]$ExtensionFilter,
         [string]$ProjectRoot,
         [string]$ScriptDir
@@ -1370,6 +1708,12 @@ function Get-AllSoftwareRatingMap {
             $m = Get-CaptureOneRatingMap -CatPath $ExplicitCatalogPath -ExtensionFilter $ExtensionFilter -ProjectRoot $ProjectRoot -ScriptDir $ScriptDir
             foreach ($k in $m.Keys) { $merged[$k] = Merge-Rating $merged[$k] $m[$k] }
             $lbl = "Capture One ($(Split-Path -Leaf $ExplicitCatalogPath))"
+            $labels.Add($lbl)
+            $details.Add((T 'StatusLoadedDbItem' @($lbl, $m.Count)))
+        } elseif ($ExplicitCatalogPath -imatch '\.luminarneo$') {
+            $m = Get-LuminarNeoRatingMap -CatPath $ExplicitCatalogPath -ExtensionFilter $ExtensionFilter -ScopeRoot $PhotoRoot -ProjectRoot $ProjectRoot -ScriptDir $ScriptDir
+            foreach ($k in $m.Keys) { $merged[$k] = Merge-Rating $merged[$k] $m[$k] }
+            $lbl = "Luminar Neo ($(Split-Path -Leaf $ExplicitCatalogPath))"
             $labels.Add($lbl)
             $details.Add((T 'StatusLoadedDbItem' @($lbl, $m.Count)))
         } else {
@@ -1410,6 +1754,30 @@ function Get-AllSoftwareRatingMap {
                 $lbl = "PixCake ($($pxDbs.Count) project DBs)"
                 $labels.Add($lbl)
                 $details.Add((T 'StatusLoadedDbItem' @('PixCake', $m.Count)))
+            }
+        }
+
+        $ppDbs = Resolve-PixPrettyDbPaths -PixPrettyDbRoot $PixPrettyDbRoot
+        if ($ppDbs.Count -gt 0) {
+            $m = Get-PixPrettyRatingMap -DbPaths $ppDbs -ExtensionFilter $ExtensionFilter -ScopeRoot $PhotoRoot -ProjectRoot $ProjectRoot -ScriptDir $ScriptDir
+            if ($m.Count -gt 0) {
+                foreach ($k in $m.Keys) { $merged[$k] = Merge-Rating $merged[$k] $m[$k] }
+                $lbl = "PixPretty ($($ppDbs.Count) DB)"
+                $labels.Add($lbl)
+                $details.Add((T 'StatusLoadedDbItem' @('PixPretty', $m.Count)))
+            }
+        }
+
+        $lumCats = Resolve-LuminarCatalogPaths -ExplicitPath $null -PhotoRoot $PhotoRoot
+        foreach ($lc in $lumCats) {
+            if (Test-Path -LiteralPath $lc -PathType Leaf) {
+                $m = Get-LuminarNeoRatingMap -CatPath $lc -ExtensionFilter $ExtensionFilter -ScopeRoot $PhotoRoot -ProjectRoot $ProjectRoot -ScriptDir $ScriptDir
+                if ($m.Count -gt 0) {
+                    foreach ($k in $m.Keys) { $merged[$k] = Merge-Rating $merged[$k] $m[$k] }
+                    $lbl = "Luminar Neo ($(Split-Path -Leaf $lc))"
+                    $labels.Add($lbl)
+                    $details.Add((T 'StatusLoadedDbItem' @($lbl, $m.Count)))
+                }
             }
         }
     }

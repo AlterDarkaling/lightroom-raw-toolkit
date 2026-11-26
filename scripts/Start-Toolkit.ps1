@@ -10,6 +10,7 @@ param(
     [string]$ExifToolPath,
     [string]$CatalogPath,
     [string]$PixCakeDbRoot,
+    [string]$PixPrettyDbRoot,
     [ValidateSet('auto', 'zh', 'en')]
     [string]$Lang = 'auto',
     [string[]]$AutoChoices,
@@ -78,11 +79,15 @@ while ($true) {
     $catLock  = ($catReady -and (Test-Path -LiteralPath ($checkCat + '.lock')))
     $c1Cats   = if ($CatalogPath) { @() } else { Resolve-CaptureOneCatalogPaths -ExplicitPath $null -PhotoRoot $currentRoot }
     $pxDbs    = if ($CatalogPath) { @() } else { Resolve-PixCakeDbPaths -PixCakeDbRoot $PixCakeDbRoot }
+    $ppDbs    = if ($CatalogPath) { @() } else { Resolve-PixPrettyDbPaths -PixPrettyDbRoot $PixPrettyDbRoot }
+    $lumCats  = if ($CatalogPath) { @() } else { Resolve-LuminarCatalogPaths -ExplicitPath $null -PhotoRoot $currentRoot }
     $dbReady  = ((Resolve-SqliteCliPath -ProjectRoot $projectRoot -ScriptDir $scriptDir) -or (Resolve-PythonCliPath))
 
     $otherDbs = New-Object System.Collections.Generic.List[string]
-    foreach ($c1 in $c1Cats) { $otherDbs.Add("Capture One ($(Split-Path -Leaf $c1))") }
-    if ($pxDbs.Count -gt 0)   { $otherDbs.Add("PixCake ($($pxDbs.Count) DBs)") }
+    foreach ($c1 in $c1Cats)  { $otherDbs.Add("Capture One ($(Split-Path -Leaf $c1))") }
+    if ($pxDbs.Count -gt 0)    { $otherDbs.Add("PixCake ($($pxDbs.Count) DBs)") }
+    if ($ppDbs.Count -gt 0)    { $otherDbs.Add("PixPretty ($($ppDbs.Count) DB)") }
+    foreach ($lc in $lumCats)  { $otherDbs.Add("Luminar Neo ($(Split-Path -Leaf $lc))") }
 
     Write-Host ""
     Write-Host (T 'MenuTitle') -ForegroundColor Cyan
@@ -158,9 +163,10 @@ while ($true) {
             RootPath = $currentRoot
             Lang     = $currentLang
         }
-        if ($ExifToolPath)  { $params['ExifToolPath']  = $ExifToolPath }
-        if ($CatalogPath)   { $params['CatalogPath']   = $CatalogPath }
-        if ($PixCakeDbRoot) { $params['PixCakeDbRoot'] = $PixCakeDbRoot }
+        if ($ExifToolPath)    { $params['ExifToolPath']    = $ExifToolPath }
+        if ($CatalogPath)     { $params['CatalogPath']     = $CatalogPath }
+        if ($PixCakeDbRoot)   { $params['PixCakeDbRoot']   = $PixCakeDbRoot }
+        if ($PixPrettyDbRoot) { $params['PixPrettyDbRoot'] = $PixPrettyDbRoot }
         & $cleanScript @params
         $null = Read-Host (T 'MenuPressEnter')
     } elseif ($choice -eq '2') {
@@ -168,9 +174,10 @@ while ($true) {
             JpgRoot = $currentRoot
             Lang    = $currentLang
         }
-        if ($ExifToolPath)  { $params['ExifToolPath']  = $ExifToolPath }
-        if ($CatalogPath)   { $params['CatalogPath']   = $CatalogPath }
-        if ($PixCakeDbRoot) { $params['PixCakeDbRoot'] = $PixCakeDbRoot }
+        if ($ExifToolPath)    { $params['ExifToolPath']    = $ExifToolPath }
+        if ($CatalogPath)     { $params['CatalogPath']     = $CatalogPath }
+        if ($PixCakeDbRoot)   { $params['PixCakeDbRoot']   = $PixCakeDbRoot }
+        if ($PixPrettyDbRoot) { $params['PixPrettyDbRoot'] = $PixPrettyDbRoot }
         & $restoreScript @params
         $null = Read-Host (T 'MenuPressEnter')
     } elseif ($choice -eq '3') {

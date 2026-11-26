@@ -290,14 +290,14 @@ con.close()
     [IO.File]::WriteAllText(($e2eCat + '.lock'), '')
 
     # Run dry-run in Chinese first to verify -Lang zh and check no unformatted {0} tokens
-    $zhOut = (& $cleanScript -RootPath $e2ePhotos -ExifToolPath $resolvedEt -BeforeDate '2026-11-01' -PixCakeDbRoot 'NONE' -Lang zh -DryRun 6>&1 | Out-String)
+    $zhOut = (& $cleanScript -RootPath $e2ePhotos -ExifToolPath $resolvedEt -BeforeDate '2026-11-01' -PixCakeDbRoot 'NONE' -PixPrettyDbRoot 'NONE' -Lang zh -DryRun 6>&1 | Out-String)
     Write-Host $zhOut
     Assert-True ($LASTEXITCODE -eq 0 -and ($zhOut -match '预览') -and ($zhOut -match '待删格式分布') -and ($zhOut -match '待处理文件预览') -and ($zhOut -match 'S01\.ARW') -and ($zhOut -notmatch '\{0\}')) 'Clean-RawToRecycleBin -Lang zh -DryRun shows format stats & top-10 file preview cleanly'
 
     # Run LIVE cleanup with relative path and -Lang en
     Push-Location $e2eRoot
     try {
-        & $cleanScript -RootPath '.\2026' -ExifToolPath $resolvedEt -BeforeDate '2026-11-01' -PixCakeDbRoot 'NONE' -Lang en -NoConfirm
+        & $cleanScript -RootPath '.\2026' -ExifToolPath $resolvedEt -BeforeDate '2026-11-01' -PixCakeDbRoot 'NONE' -PixPrettyDbRoot 'NONE' -Lang en -NoConfirm
     } finally {
         Pop-Location
     }
@@ -365,13 +365,13 @@ con.close()
     Remove-Item -LiteralPath ($e2eCat + '.lock') -ErrorAction SilentlyContinue
 
     # 4a. Dry-run preview in Chinese (no files touched, no unformatted placeholders)
-    $jpgDryZh = (& $restScript -JpgRoot $e2ePhotos -CatalogPath $e2eCat -ExifToolPath $resolvedEt -PixCakeDbRoot 'NONE' -DryRun -Lang zh 6>&1 | Out-String)
+    $jpgDryZh = (& $restScript -JpgRoot $e2ePhotos -CatalogPath $e2eCat -ExifToolPath $resolvedEt -PixCakeDbRoot 'NONE' -PixPrettyDbRoot 'NONE' -DryRun -Lang zh 6>&1 | Out-String)
     Write-Host $jpgDryZh
     Assert-True ($LASTEXITCODE -eq 0 -and ($jpgDryZh -match '预览') -and ($jpgDryZh -match '待处理文件预览') -and ($jpgDryZh -match 'IMG_0001\.JPG') -and ($jpgDryZh -match '网盘提示') -and ($jpgDryZh -notmatch '\{0\}')) 'Restore-RatingToJpg -DryRun -Lang zh shows top-10 preview & formatted placeholders'
     Assert-True (((Get-FileHash -LiteralPath $jpg1 -Algorithm SHA256).Hash -eq $preHash1)) 'DryRun did not modify matched unrated JPG'
 
     # 4b. Live run with -NoConfirm (incremental skip + -P + centralized backup)
-    $jpgLiveOut = (& $restScript -JpgRoot $e2ePhotos -CatalogPath $e2eCat -ExifToolPath $resolvedEt -PixCakeDbRoot 'NONE' -Lang en -NoConfirm 6>&1 | Out-String)
+    $jpgLiveOut = (& $restScript -JpgRoot $e2ePhotos -CatalogPath $e2eCat -ExifToolPath $resolvedEt -PixCakeDbRoot 'NONE' -PixPrettyDbRoot 'NONE' -Lang en -NoConfirm 6>&1 | Out-String)
     Write-Host $jpgLiveOut
     Assert-True ($LASTEXITCODE -eq 0 -and ($jpgLiveOut -notmatch '\{0\}')) 'Restore-RatingToJpg -NoConfirm exited 0'
     $inPhotoOrigs = @(Get-ChildItem -LiteralPath $e2ePhotos -Recurse -File -Filter '*_original')
@@ -393,7 +393,7 @@ con.close()
     Assert-True ($null -eq $metaJson[1].Rating) 'Unmatched same-name JPG remains unrated'
 
     # 4c. Re-run DryRun: all matched JPGs should now be skipped (0 to write)
-    $jpgReDry = (& $restScript -JpgRoot $e2ePhotos -CatalogPath $e2eCat -ExifToolPath $resolvedEt -PixCakeDbRoot 'NONE' -DryRun -Lang zh 6>&1 | Out-String)
+    $jpgReDry = (& $restScript -JpgRoot $e2ePhotos -CatalogPath $e2eCat -ExifToolPath $resolvedEt -PixCakeDbRoot 'NONE' -PixPrettyDbRoot 'NONE' -DryRun -Lang zh 6>&1 | Out-String)
     Assert-True ($LASTEXITCODE -eq 0 -and ($jpgReDry -match '无需修改任何文件')) 'Second run skips all already-rated JPGs'
 
     # 4c-2. Verify manifest.json + jpg_restore_*.log + Rollback-JpgBackup + SubFolder/RecentDays scope
@@ -455,7 +455,7 @@ con.close()
     & $pyExe $pySc $scCat $absSc
     if ($LASTEXITCODE -ne 0) { throw "Failed to create sidecar test catalog: exit=$LASTEXITCODE" }
 
-    $scOut = (& $restScript -JpgRoot $scPhotos -CatalogPath $scCat -ExifToolPath $resolvedEt -PixCakeDbRoot 'NONE' -SidecarOnly -NoConfirm -Lang en 6>&1 | Out-String)
+    $scOut = (& $restScript -JpgRoot $scPhotos -CatalogPath $scCat -ExifToolPath $resolvedEt -PixCakeDbRoot 'NONE' -PixPrettyDbRoot 'NONE' -SidecarOnly -NoConfirm -Lang en 6>&1 | Out-String)
     Write-Host $scOut
     $scOkXmpPath = Join-Path $scSub 'SC_OK.xmp'
     Assert-True ($LASTEXITCODE -eq 0 -and (Test-Path -LiteralPath $scOkXmpPath -PathType Leaf)) 'SidecarOnly created SC_OK.xmp'
@@ -464,25 +464,38 @@ con.close()
     Assert-True (((Get-FileHash -LiteralPath $scOkJpg -Algorithm SHA256).Hash -eq $scOkHash)) 'SidecarOnly left JPG bytes 100% untouched'
     $scConXmpText = [IO.File]::ReadAllText($scConXmp)
     Assert-True (($scConXmpText -match 'xmp:Rating="1"') -and ($scConXmpText -match 'SidecarForExtension="ARW"')) 'SidecarOnly refused to clobber RAW-owned XMP'
-    $scReDry = (& $restScript -JpgRoot $scPhotos -CatalogPath $scCat -ExifToolPath $resolvedEt -PixCakeDbRoot 'NONE' -SidecarOnly -DryRun -Lang en 6>&1 | Out-String)
+    $scReDry = (& $restScript -JpgRoot $scPhotos -CatalogPath $scCat -ExifToolPath $resolvedEt -PixCakeDbRoot 'NONE' -PixPrettyDbRoot 'NONE' -SidecarOnly -DryRun -Lang en 6>&1 | Out-String)
     Assert-True ($LASTEXITCODE -eq 0 -and ($scReDry -match 'Nothing to do')) 'SidecarOnly second run skips already-matching sidecar'
 
-    # 4e. Universal Sources Test: No-Catalog RAW/XMP sync + Capture One (.cocatalogdb) + PixCake (project.db)
-    Write-Host "`n=== 4e. Universal Sources Test (No-Catalog XMP + Capture One + PixCake) ===" -ForegroundColor Cyan
+    # 4e. Universal Sources Test: No-Catalog RAW/XMP (incl. digiKam PickLabel) + Capture One + PixCake + PixPretty + Luminar Neo
+    Write-Host "`n=== 4e. Universal Sources Test (No-Catalog XMP + Capture One + PixCake + PixPretty + Luminar Neo) ===" -ForegroundColor Cyan
     $uniRoot   = Join-Path $tmpBase 'uni_test'
     $uniPhotos = Join-Path $uniRoot 'Photos'
     $uXmpDir   = Join-Path $uniPhotos '2026-03-01'
     $uC1Dir    = Join-Path $uniPhotos '2026-03-02'
     $uPxDir    = Join-Path $uniPhotos '2026-03-03'
+    $uPpDir    = Join-Path $uniPhotos '2026-03-04'
+    $uLumDir   = Join-Path $uniPhotos '2026-03-05'
     $c1Dir     = Join-Path $uniRoot 'Capture One Catalog'
     $pxDbDir   = Join-Path $uniRoot 'pixcake_db\user_1\project_1'
     $pxRootArg = Join-Path $uniRoot 'pixcake_db'
-    New-Item -ItemType Directory -Path $uXmpDir, $uC1Dir, $uPxDir, $c1Dir, $pxDbDir -Force | Out-Null
+    $ppDbDir   = Join-Path $uniRoot 'pixpretty_cfg\user_1\project'
+    $ppRootArg = Join-Path $uniRoot 'pixpretty_cfg'
+    $lumDir    = Join-Path $uniRoot 'Luminar Neo Catalog'
+    New-Item -ItemType Directory -Path $uXmpDir, $uC1Dir, $uPxDir, $uPpDir, $uLumDir, $c1Dir, $pxDbDir, $ppDbDir, $lumDir -Force | Out-Null
 
     $uXmpJpg = Join-Path $uXmpDir 'SONY_XMP.JPG'
     New-TestJpg (Join-Path $uXmpDir 'SONY_XMP.ARW') 0
     New-TestJpg $uXmpJpg 0
     New-TestXmp (Join-Path $uXmpDir 'SONY_XMP.xmp') 4 'ARW' 'image/x-sony-arw' 'SONY_XMP.ARW'
+
+    # digiKam PickLabel=3 (Accepted) vs PickLabel=1 (Rejected)
+    $dkAccXmp = Join-Path $uXmpDir 'DIGI_ACC.xmp'
+    $dkRejXmp = Join-Path $uXmpDir 'DIGI_REJ.xmp'
+    [IO.File]::WriteAllText($dkAccXmp, '<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description xmlns:digiKam="http://www.digikam.org/ns/1.0/" digiKam:PickLabel="3"/></rdf:RDF></x:xmpmeta>')
+    [IO.File]::WriteAllText($dkRejXmp, '<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description xmlns:digiKam="http://www.digikam.org/ns/1.0/" digiKam:PickLabel="1"/></rdf:RDF></x:xmpmeta>')
+    $dkMap = Get-FileRatingMap -FilePaths @($dkAccXmp, $dkRejXmp) -ExifTool $resolvedEt
+    Assert-True ($dkMap[$dkAccXmp] -eq 1 -and $dkMap[$dkRejXmp] -eq 0) 'Get-FileRatingMap treats digiKam PickLabel=3 as picked (1*) and ignores PickLabel=1'
 
     $uC1Raw = Join-Path $uC1Dir 'C1_RAW.ARW'
     $uC1Jpg = Join-Path $uC1Dir 'C1_RAW.JPG'
@@ -494,12 +507,30 @@ con.close()
     New-TestJpg $uPxRaw 0
     New-TestJpg $uPxJpg 0
 
-    $c1CatPath = Join-Path $c1Dir 'TestC1.cocatalogdb'
-    $pxDbPath  = Join-Path $pxDbDir 'project.db'
-    $pyUni     = Join-Path $tmpBase 'mk_uni_dbs.py'
+    $uPpRaw     = Join-Path $uPpDir 'PP_RAW.ARW'
+    $uPpJpg     = Join-Path $uPpDir 'PP_RAW.JPG'
+    $uPpFlagRaw = Join-Path $uPpDir 'PP_FLAG.ARW'
+    $uPpFlagJpg = Join-Path $uPpDir 'PP_FLAG.JPG'
+    $uPpDelRaw  = Join-Path $uPpDir 'PP_DEL.ARW'
+    $uPpDelJpg  = Join-Path $uPpDir 'PP_DEL.JPG'
+    $uPpDpRaw   = Join-Path $uPpDir 'PP_DELPROJ.ARW'
+    $uPpDpJpg   = Join-Path $uPpDir 'PP_DELPROJ.JPG'
+    foreach ($p in @($uPpRaw, $uPpJpg, $uPpFlagRaw, $uPpFlagJpg, $uPpDelRaw, $uPpDelJpg, $uPpDpRaw, $uPpDpJpg)) { New-TestJpg $p 0 }
+
+    $uLumRaw   = Join-Path $uLumDir 'LUM_RAW.ARW'
+    $uLumJpg   = Join-Path $uLumDir 'LUM_RAW.JPG'
+    $uLumTrRaw = Join-Path $uLumDir 'LUM_TRASH.ARW'
+    $uLumTrJpg = Join-Path $uLumDir 'LUM_TRASH.JPG'
+    foreach ($p in @($uLumRaw, $uLumJpg, $uLumTrRaw, $uLumTrJpg)) { New-TestJpg $p 0 }
+
+    $c1CatPath  = Join-Path $c1Dir 'TestC1.cocatalogdb'
+    $pxDbPath   = Join-Path $pxDbDir 'project.db'
+    $ppDbPath   = Join-Path $ppDbDir 'projects_v4.db'
+    $lumCatPath = Join-Path $lumDir 'TestLum.luminarneo'
+    $pyUni      = Join-Path $tmpBase 'mk_uni_dbs.py'
     $uniPyCode = @'
-import sqlite3, sys
-c1_path, c1_winroot, px_path, px_img = sys.argv[1:5]
+import ctypes, os, sqlite3, sys
+c1_path, c1_winroot, px_path, px_img, pp_path, pp_jpg, pp_flag_arw, pp_del_arw, pp_dp_arw, lum_path, lum_dir = sys.argv[1:12]
 
 con1 = sqlite3.connect(c1_path)
 c1 = con1.cursor()
@@ -522,10 +553,54 @@ c2.execute('CREATE TABLE thumbnail (id INTEGER PRIMARY KEY, originalImagePath TE
 c2.execute("INSERT INTO thumbnail VALUES (1, ?, 3, 0, 0, 0)", (px_img,))
 con2.commit()
 con2.close()
+
+k32 = ctypes.windll.kernel32
+drv = os.path.splitdrive(pp_jpg)[0] + '\\'
+vbuf = ctypes.create_unicode_buffer(128)
+vol_guid = drv
+if k32.GetVolumeNameForVolumeMountPointW(drv, vbuf, 128):
+    vol_guid = vbuf.value
+ser = ctypes.c_ulong(0)
+k32.GetVolumeInformationW(drv, None, 0, ctypes.byref(ser), None, None, None, 0)
+vsn_json = f'{{"VolumeSerialNumber":"{ser.value:08X}"}}'
+
+def rel_from_drive(p):
+    return p[3:].replace('\\', '/')
+
+con3 = sqlite3.connect(pp_path)
+c3 = con3.cursor()
+c3.execute('CREATE TABLE projects (project_id TEXT PRIMARY KEY, name TEXT, del_states INTEGER)')
+c3.execute('CREATE TABLE images (img_no TEXT PRIMARY KEY, project_id TEXT, name TEXT, relative_path TEXT, root_path_id TEXT, level INTEGER, flag_mark INTEGER, color_mark INTEGER, is_del INTEGER)')
+c3.execute("INSERT INTO projects VALUES ('p_active', 'active', 0)")
+c3.execute("INSERT INTO projects VALUES ('p_deleted', 'deleted', 2)")
+c3.execute("INSERT INTO images VALUES ('i1', 'p_active', 'PP_RAW.JPG', ?, ?, 2, 0, 0, 0)", (rel_from_drive(pp_jpg), vol_guid))
+c3.execute("INSERT INTO images VALUES ('i2', 'p_active', 'PP_FLAG.ARW', ?, ?, 0, 1, 0, 0)", (rel_from_drive(pp_flag_arw), vol_guid))
+c3.execute("INSERT INTO images VALUES ('i3', 'p_active', 'PP_DEL.ARW', ?, ?, 5, 0, 0, 1)", (rel_from_drive(pp_del_arw), vol_guid))
+c3.execute("INSERT INTO images VALUES ('i4', 'p_deleted', 'PP_DELPROJ.ARW', ?, ?, 5, 0, 0, 0)", (rel_from_drive(pp_dp_arw), vol_guid))
+con3.commit()
+con3.close()
+
+con4 = sqlite3.connect(lum_path)
+c4 = con4.cursor()
+c4.execute('CREATE TABLE volumes (_id_int_64 INTEGER PRIMARY KEY, marked_to_delete_bool INTEGER, guid_wide_ch TEXT, info_wide_ch TEXT)')
+c4.execute('CREATE TABLE paths (_id_int_64 INTEGER PRIMARY KEY, marked_to_delete_bool INTEGER, volume_id_int_64 INTEGER, path_wide_ch TEXT)')
+c4.execute('CREATE TABLE paths_images (_key_id_int_64 INTEGER, _val_id_int_64 INTEGER)')
+c4.execute('CREATE TABLE images (_id_int_64 INTEGER PRIMARY KEY, marked_to_delete_bool INTEGER, path_wide_ch TEXT)')
+c4.execute('CREATE TABLE image_user_attributes (_id_int_64 INTEGER PRIMARY KEY, marked_to_delete_bool INTEGER, _out_id_int_64 INTEGER, trash_bool INTEGER, marker INTEGER, color INTEGER, rating INTEGER)')
+c4.execute("INSERT INTO volumes VALUES (1, 0, 'g1', ?)", (vsn_json,))
+c4.execute("INSERT INTO paths VALUES (1, 0, 1, ?)", (rel_from_drive(lum_dir),))
+c4.execute("INSERT INTO images VALUES (1, 0, 'LUM_RAW.ARW')")
+c4.execute("INSERT INTO images VALUES (2, 0, 'LUM_TRASH.ARW')")
+c4.execute("INSERT INTO paths_images VALUES (1, 1)")
+c4.execute("INSERT INTO paths_images VALUES (1, 2)")
+c4.execute("INSERT INTO image_user_attributes VALUES (1, 0, 1, 0, 0, 0, 4)")
+c4.execute("INSERT INTO image_user_attributes VALUES (2, 0, 2, 1, 0, 0, 5)")
+con4.commit()
+con4.close()
 '@
     [IO.File]::WriteAllText($pyUni, $uniPyCode, (New-Object System.Text.UTF8Encoding $false))
-    & $pyExe $pyUni $c1CatPath $uniPhotos $pxDbPath $uPxRaw
-    if ($LASTEXITCODE -ne 0) { throw "Failed to create C1/PixCake test DBs: exit=$LASTEXITCODE" }
+    & $pyExe $pyUni $c1CatPath $uniPhotos $pxDbPath $uPxRaw $ppDbPath $uPpJpg $uPpFlagRaw $uPpDelRaw $uPpDpRaw $lumCatPath $uLumDir
+    if ($LASTEXITCODE -ne 0) { throw "Failed to create C1/PixCake/PixPretty/Luminar test DBs: exit=$LASTEXITCODE" }
 
     # Zero-catalog test: Sony XMP 4* syncs to JPG without ANY DB
     & $restScript -JpgRoot $uniPhotos -SubFolder '2026-03-01' -NoCatalog -ExifToolPath $resolvedEt -NoBackup -NoConfirm -Lang en
@@ -538,9 +613,9 @@ con2.close()
     Assert-True ($uXmpMeta[0].Rating -eq 4) 'No-catalog JPG received 4-star rating from companion .xmp'
 
     # Capture One DB test: protects ARW in clean AND syncs 5* to JPG
-    $c1CleanOut = (& $cleanScript -RootPath $uniPhotos -CatalogPath $c1CatPath -ExifToolPath $resolvedEt -BeforeDate '2026-04-01' -PixCakeDbRoot 'NONE' -DryRun -Lang en 6>&1 | Out-String)
+    $c1CleanOut = (& $cleanScript -RootPath $uniPhotos -CatalogPath $c1CatPath -ExifToolPath $resolvedEt -BeforeDate '2026-04-01' -PixCakeDbRoot 'NONE' -PixPrettyDbRoot 'NONE' -DryRun -Lang en 6>&1 | Out-String)
     Assert-True ($LASTEXITCODE -eq 0 -and ($c1CleanOut -notmatch 'C1_RAW\.ARW') -and ($c1CleanOut -match 'PX_RAW\.ARW') -and ($c1CleanOut -match 'Kept \(star-rated\)\s*:\s*2')) 'Clean-RawToRecycleBin protects Capture One rated RAW'
-    & $restScript -JpgRoot $uniPhotos -SubFolder '2026-03-02' -CatalogPath $c1CatPath -ExifToolPath $resolvedEt -NoBackup -NoConfirm -Lang en
+    & $restScript -JpgRoot $uniPhotos -SubFolder '2026-03-02' -CatalogPath $c1CatPath -ExifToolPath $resolvedEt -PixCakeDbRoot 'NONE' -PixPrettyDbRoot 'NONE' -NoBackup -NoConfirm -Lang en
     $prev = $ErrorActionPreference
     try {
         $ErrorActionPreference = 'Continue'
@@ -549,9 +624,9 @@ con2.close()
     Assert-True ($uC1Meta[0].Rating -eq 5) 'Capture One 5-star synced to C1_RAW.JPG'
 
     # PixCake DB test: protects ARW in clean AND syncs 3* to JPG
-    $pxCleanOut = (& $cleanScript -RootPath $uniPhotos -ExifToolPath $resolvedEt -BeforeDate '2026-04-01' -PixCakeDbRoot $pxRootArg -DryRun -Lang en 6>&1 | Out-String)
-    Assert-True ($LASTEXITCODE -eq 0 -and ($pxCleanOut -notmatch 'PX_RAW\.ARW') -and ($pxCleanOut -match 'All 3 candidate RAW')) 'Clean-RawToRecycleBin protects PixCake rated RAW'
-    & $restScript -JpgRoot $uniPhotos -SubFolder '2026-03-03' -PixCakeDbRoot $pxRootArg -ExifToolPath $resolvedEt -NoBackup -NoConfirm -Lang en
+    $pxCleanOut = (& $cleanScript -RootPath $uniPhotos -ExifToolPath $resolvedEt -BeforeDate '2026-04-01' -PixCakeDbRoot $pxRootArg -PixPrettyDbRoot 'NONE' -DryRun -Lang en 6>&1 | Out-String)
+    Assert-True ($LASTEXITCODE -eq 0 -and ($pxCleanOut -notmatch 'PX_RAW\.ARW') -and ($pxCleanOut -match 'Kept \(star-rated\)\s*:\s*4')) 'Clean-RawToRecycleBin protects PixCake rated RAW'
+    & $restScript -JpgRoot $uniPhotos -SubFolder '2026-03-03' -PixCakeDbRoot $pxRootArg -PixPrettyDbRoot 'NONE' -ExifToolPath $resolvedEt -NoBackup -NoConfirm -Lang en
     $prev = $ErrorActionPreference
     try {
         $ErrorActionPreference = 'Continue'
@@ -559,10 +634,32 @@ con2.close()
     } finally { $ErrorActionPreference = $prev }
     Assert-True ($uPxMeta[0].Rating -eq 3) 'PixCake 3-star synced to PX_RAW.JPG'
 
+    # PixPretty DB test: protects active rated/flagged ARWs, targets deleted/deleted-project ARWs, and syncs to JPG
+    $ppCleanOut = (& $cleanScript -RootPath $uniPhotos -ExifToolPath $resolvedEt -BeforeDate '2026-04-01' -PixCakeDbRoot 'NONE' -PixPrettyDbRoot $ppRootArg -DryRun -Lang en 6>&1 | Out-String)
+    Assert-True ($LASTEXITCODE -eq 0 -and ($ppCleanOut -notmatch 'PP_RAW\.ARW') -and ($ppCleanOut -notmatch 'PP_FLAG\.ARW') -and ($ppCleanOut -match 'PP_DEL\.ARW') -and ($ppCleanOut -match 'PP_DELPROJ\.ARW')) 'Clean-RawToRecycleBin protects PixPretty active rated/flagged RAWs and excludes deleted items'
+    & $restScript -JpgRoot $uniPhotos -SubFolder '2026-03-04' -PixCakeDbRoot 'NONE' -PixPrettyDbRoot $ppRootArg -ExifToolPath $resolvedEt -NoBackup -NoConfirm -Lang en
+    $prev = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        $uPpMeta = (& $resolvedEt -json -XMP:Rating $uPpJpg $uPpFlagJpg $uPpDelJpg $uPpDpJpg 2>$null) | Out-String | ConvertFrom-Json
+    } finally { $ErrorActionPreference = $prev }
+    Assert-True ($uPpMeta[0].Rating -eq 2 -and $uPpMeta[1].Rating -eq 1 -and $null -eq $uPpMeta[2].Rating -and $null -eq $uPpMeta[3].Rating) 'PixPretty 2* & flag synced to JPG while recycled/deleted-project stayed unrated'
+
+    # Luminar Neo DB test: protects non-trashed rated RAW and syncs 4* to JPG
+    $lumCleanOut = (& $cleanScript -RootPath $uniPhotos -CatalogPath $lumCatPath -ExifToolPath $resolvedEt -BeforeDate '2026-04-01' -PixCakeDbRoot 'NONE' -PixPrettyDbRoot 'NONE' -DryRun -Lang en 6>&1 | Out-String)
+    Assert-True ($LASTEXITCODE -eq 0 -and ($lumCleanOut -notmatch 'LUM_RAW\.ARW') -and ($lumCleanOut -match 'LUM_TRASH\.ARW')) 'Clean-RawToRecycleBin protects Luminar Neo rated RAW and excludes Trash'
+    & $restScript -JpgRoot $uniPhotos -SubFolder '2026-03-05' -CatalogPath $lumCatPath -ExifToolPath $resolvedEt -PixCakeDbRoot 'NONE' -PixPrettyDbRoot 'NONE' -NoBackup -NoConfirm -Lang en
+    $prev = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        $uLumMeta = (& $resolvedEt -json -XMP:Rating $uLumJpg $uLumTrJpg 2>$null) | Out-String | ConvertFrom-Json
+    } finally { $ErrorActionPreference = $prev }
+    Assert-True ($uLumMeta[0].Rating -eq 4 -and $null -eq $uLumMeta[1].Rating) 'Luminar Neo 4-star synced to LUM_RAW.JPG while trashed stayed unrated'
+
     Write-Host "`n=== 5. Unified Menu Smoke Test (-Lang zh & -Lang en & live L toggle) ===" -ForegroundColor Cyan
     $menuScript = Join-Path $projectRoot 'scripts\Start-Toolkit.ps1'
     foreach ($lg in @('zh', 'en')) {
-        $mOut = (& $menuScript -RootPath $e2ePhotos -ExifToolPath $resolvedEt -CatalogPath $e2eCat -PixCakeDbRoot 'NONE' -Lang $lg -NoConfig -AutoChoices @('L', '0') 6>&1 | Out-String)
+        $mOut = (& $menuScript -RootPath $e2ePhotos -ExifToolPath $resolvedEt -CatalogPath $e2eCat -PixCakeDbRoot 'NONE' -PixPrettyDbRoot 'NONE' -Lang $lg -NoConfig -AutoChoices @('L', '0') 6>&1 | Out-String)
         Write-Host $mOut
         Assert-True (($mOut -notmatch '\{0\}') -and ($mOut -match 'ExifTool') -and ($mOut -match 'Rollback') -and ($mOut -match 'RAW & JPG 摄影清理与星标工具箱') -and ($mOut -match 'RAW & JPG Photo Toolkit')) ("Start-Toolkit.ps1 -Lang $lg shows env checks, toggles lang, and exits cleanly")
     }

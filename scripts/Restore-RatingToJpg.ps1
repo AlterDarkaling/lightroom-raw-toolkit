@@ -12,6 +12,7 @@ param(
     [string]$CatalogPath,
     [switch]$NoCatalog,
     [string]$PixCakeDbRoot,
+    [string]$PixPrettyDbRoot,
     [ValidateSet('auto', 'db', 'files')]
     [string]$RatingSource = 'auto',
     [string]$ExifToolPath,
@@ -227,7 +228,7 @@ $dbLabels  = @()
 $filterExts = @('jpg', 'jpeg') + @((Get-DefaultRawExtensions) | ForEach-Object { $_.TrimStart('.') })
 if (-not $NoCatalog.IsPresent -and $RatingSource -ne 'files') {
     try {
-        $dbRes = Get-AllSoftwareRatingMap -PhotoRoot $JpgRoot -ExplicitCatalogPath $(if ($explicitCatalog) { $CatalogPath } else { $null }) -PixCakeDbRoot $PixCakeDbRoot -ExtensionFilter $filterExts -ProjectRoot $projectRoot -ScriptDir $scriptDir
+        $dbRes = Get-AllSoftwareRatingMap -PhotoRoot $JpgRoot -ExplicitCatalogPath $(if ($explicitCatalog) { $CatalogPath } else { $null }) -PixCakeDbRoot $PixCakeDbRoot -PixPrettyDbRoot $PixPrettyDbRoot -ExtensionFilter $filterExts -ProjectRoot $projectRoot -ScriptDir $scriptDir
         if ($dbRes.LockWarnings.Count -gt 0) {
             Write-Host (T 'WarnLrRunning1') -ForegroundColor Red
             Write-Host (T 'WarnLrRunning2') -ForegroundColor Red

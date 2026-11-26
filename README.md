@@ -2,7 +2,7 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-A safe, **Recycle-Bin-first** Windows toolkit for photographers who shoot **RAW + JPG/HEIF** — clean unrated old RAWs safely and sync star ratings across **Lightroom Classic**, **Capture One**, **Adobe Bridge / Camera Raw**, **Sony Imaging Edge Desktop**, and **PixCake**.
+A safe, **Recycle-Bin-first** Windows toolkit for photographers who shoot **RAW + JPG/HEIF** — clean unrated old RAWs safely and sync star ratings across **Lightroom Classic**, **Capture One**, **Luminar Neo**, **Adobe Bridge / Camera Raw**, **Sony Imaging Edge Desktop**, **PixCake**, and **PixPretty**, with explicit compatibility boundaries for cloud/encrypted editors.
 
 ## Features
 
@@ -12,14 +12,20 @@ A safe, **Recycle-Bin-first** Windows toolkit for photographers who shoot **RAW 
 
 ## Supported Software & Boundaries
 
-| Software / Workflow | Cleanup `[1]` | Sync to JPG `[2]` | Usage Notes & Boundaries |
+| Software / Workflow | Cleanup `[1]` | Sync to JPG `[2]` | Usage Notes &amp; Boundaries |
 |---|---|---|---|
 | **Adobe Lightroom Classic** | Supported | Supported | Reads `.lrcat` directly (even without `Ctrl+S`) plus `.xmp` sidecars. |
 | **Capture One** | Supported | Supported | Reads `.cocatalogdb` / `.cosessiondb` plus synced `.xmp`. Close Capture One first for latest edits (`.cos` stores adjustments, not stars). |
-| **Adobe Bridge / Camera Raw / Luminar** | Supported | Supported | Reads standard `<name>.xmp` and embedded metadata automatically. |
-| **Sony Imaging Edge Desktop (IED) / Camera stars** | Supported | Supported | Reads camera-embedded Sony ratings in `.ARW`; if you rated inside IED on PC, run **File → Export Rating/Color Label to XMP** first. |
-| **PixCake (像素蛋糕)** | Supported (Local DB) | Supported (Local DB) | Reads local `project.db` star/pick flags when original local paths match. Cloud-only projects without local paths/exports are not visible. |
-| **Other editors (Meitu, FastStone, Photo Mechanic, etc.)** | Supported via EXIF/XMP/JPG | Supported via RAW/XMP | Any software that writes standard `.xmp` or EXIF ratings into RAW/JPG works directly; apps storing picks solely in proprietary cloud/closed caches cannot be read automatically. |
+| **PixCake (像素蛋糕)** | Supported (Local DB) | Supported (Local DB) | Reads local `project.db` stars &amp; pick flags across standard client install paths (skipping recycled shots). Cloud-only projects without local paths/exports are not visible. |
+| **PixPretty (影像之匠)** | Supported (Local DB) | Supported (Local DB) | Reads local `projects_v4.db` stars (`1–5`) and pick flags (`flag_mark`), excluding deleted shots/projects. Cloud-only selections are not visible. |
+| **Luminar Neo** | Supported | Supported | Reads `.luminarneo` catalog ratings &amp; favorite (`marker`) flags (excluding Trash). Close Luminar Neo before running so changes flush to disk. |
+| **Adobe Bridge / Camera Raw / FastRawViewer / Photo Mechanic** | Supported | Supported | Reads standard `<name>.xmp` and embedded metadata automatically. |
+| **digiKam / darktable / XnView MP / ACDSee** | Supported via `.xmp` / written metadata | Supported via `.xmp` / written metadata | Works when XMP sidecar writing / embedded metadata sync is enabled (including `PickLabel=3` accepted flags in digiKam/darktable); update files from catalog first if ratings stay cache-only. |
+| **Sony Imaging Edge Desktop (IED) / Camera stars** | Supported (with export step) | Supported (with export step) | Reads camera-embedded Sony ratings in `.ARW`; if you rated inside IED on PC, run **File → Export Rating/Color Label to XMP** first. |
+| **Magic Mirror 5 / 魔镜修图 5 (Haicaoyun)** | Not directly readable | Not directly readable | Uses an encrypted local database (`magic_mirror.realm`) for client jobs. Export culled outputs first or do initial star culling in LR / Bridge / PixCake / PixPretty before cleanup. |
+| **Meitu Yunxiu (美图云修) / nEO iMAGING (光影魔术手)** | Only after standard metadata export | Only after standard metadata export | Keeps picks/edits in proprietary project or cloud storage without standard `.xmp`; export finished JPGs or use an XMP-capable culler before deleting RAWs. |
+| **PixCheese (像素芝士) / Xiangxiangpai / OOTU** | Not cloud-readable | Not cloud-readable | Desktop tools handle upload/download/print queues while selections live in the cloud. Download or sync client selections before cleaning RAWs. |
+| **Eagle / Billfish** | Only when linked in-place | — | If assets are copied into a separate library vault, ratings do not write back to your original shoot folder. |
 
 ## Safety First
 

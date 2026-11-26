@@ -15,6 +15,7 @@ param(
     [string]  $CatalogPath,
     [switch]  $NoCatalog,
     [string]  $PixCakeDbRoot,
+    [string]  $PixPrettyDbRoot,
     [switch]  $DeleteRawOnly,
     [switch]  $DryRun,
     [switch]  $NoConfirm,
@@ -91,6 +92,13 @@ if (-not $NoCatalog) {
         if ($pxCount -gt 0) {
             $detectedDbLabels.Add("PixCake ($pxCount project DBs)")
         }
+        $ppCount = @(Resolve-PixPrettyDbPaths -PixPrettyDbRoot $PixPrettyDbRoot).Count
+        if ($ppCount -gt 0) {
+            $detectedDbLabels.Add("PixPretty ($ppCount DB)")
+        }
+        foreach ($lc in (Resolve-LuminarCatalogPaths -ExplicitPath $null -PhotoRoot $RootPath)) {
+            $detectedDbLabels.Add($lc)
+        }
     }
 } else {
     $CatalogPath = $null
@@ -113,8 +121,22 @@ if (-not $BeforeDate -and -not $KeepRecentDays) {
             }
             $RootPath = (Resolve-Path -LiteralPath $customRoot).Path
             if (-not $NoCatalog -and -not $explicitCatalog) {
+                $detectedDbLabels.Clear()
                 $CatalogPath = Resolve-CatalogPath -ExplicitPath $null -PhotoRoot $RootPath
-                if ($CatalogPath) { $CatalogPath = (Resolve-Path -LiteralPath $CatalogPath).Path }
+                if ($CatalogPath) {
+                    $CatalogPath = (Resolve-Path -LiteralPath $CatalogPath).Path
+                    $detectedDbLabels.Add($CatalogPath)
+                }
+                foreach ($c1 in (Resolve-CaptureOneCatalogPaths -ExplicitPath $null -PhotoRoot $RootPath)) {
+                    $detectedDbLabels.Add($c1)
+                }
+                $pxCount = @(Resolve-PixCakeDbPaths -PixCakeDbRoot $PixCakeDbRoot).Count
+                if ($pxCount -gt 0) { $detectedDbLabels.Add("PixCake ($pxCount project DBs)") }
+                $ppCount = @(Resolve-PixPrettyDbPaths -PixPrettyDbRoot $PixPrettyDbRoot).Count
+                if ($ppCount -gt 0) { $detectedDbLabels.Add("PixPretty ($ppCount DB)") }
+                foreach ($lc in (Resolve-LuminarCatalogPaths -ExplicitPath $null -PhotoRoot $RootPath)) {
+                    $detectedDbLabels.Add($lc)
+                }
             }
             Write-Host (T 'BannerSwitchedRoot' @($RootPath)) -ForegroundColor Cyan
         }
@@ -361,7 +383,7 @@ if (-not $DeleteRated -and $candidates.Count -gt 0) {
     if (-not $NoCatalog -and ($detectedDbLabels.Count -gt 0)) {
         Write-Host (T 'StatusReadingCatalog') -ForegroundColor DarkGray
         try {
-            $dbRes = Get-AllSoftwareRatingMap -PhotoRoot $RootPath -ExplicitCatalogPath $(if ($explicitCatalog) { $CatalogPath } else { $null }) -PixCakeDbRoot $PixCakeDbRoot -ProjectRoot $projectRoot -ScriptDir $scriptDir
+            $dbRes = Get-AllSoftwareRatingMap -PhotoRoot $RootPath -ExplicitCatalogPath $(if ($explicitCatalog) { $CatalogPath } else { $null }) -PixCakeDbRoot $PixCakeDbRoot -PixPrettyDbRoot $PixPrettyDbRoot -ProjectRoot $projectRoot -ScriptDir $scriptDir
             if ($dbRes.LockWarnings.Count -gt 0) {
                 Write-Host ""
                 Write-Host (T 'WarnLrRunning1') -ForegroundColor Red
